@@ -36,9 +36,10 @@ function resize() {
 addEventListener('resize', resize); resize();
 
 // ---------- progresso salvo ----------
-let save = { area: 4 };
-try { const s = JSON.parse(localStorage.getItem('zipo_save') || '{}'); if (s.area) save.area = s.area; } catch (e) {}
-function unlock(a) { if (a > save.area) { save.area = a; try { localStorage.setItem('zipo_save', JSON.stringify(save)); } catch (e) {} } }
+let save = { area: 4, done: [] };
+try { const s = JSON.parse(localStorage.getItem('zipo_save') || '{}'); if (s.area) save.area = Math.max(save.area, s.area); if (Array.isArray(s.done)) save.done = s.done; } catch (e) {}
+function storeSave() { try { localStorage.setItem('zipo_save', JSON.stringify(save)); } catch (e) {} }
+function unlock(a) { if (a > save.area) save.area = a; if (L && !save.done.includes(L.id)) save.done.push(L.id); storeSave(); }
 
 // ---------- som ----------
 let AC = null;
@@ -271,6 +272,7 @@ addEventListener('keydown', e => {
   initAudio();
   if (e.repeat) return;
   keys[e.code] = true;
+  if (state === 'map') { if (e.code === 'ArrowRight' || e.code === 'KeyD') mapGo(map.sel + 1); else if (e.code === 'ArrowLeft' || e.code === 'KeyA') mapGo(map.sel - 1); else if (['Enter', 'Space', 'KeyX'].includes(e.code)) mapPlay(); return; }
   if (state !== 'play') {
     if (state === 'title' && save.area >= 2) { if (e.code === 'Digit1') return startArea(1); if (e.code === 'Digit2') return startArea(2); if (e.code === 'Digit3' && save.area >= 3) return startArea(3); if (e.code === 'Digit4' && save.area >= 4) return startArea(4); }
     tapAdvance(null); return;
@@ -304,7 +306,7 @@ cv.addEventListener('pointerdown', e => {
   const p = toV(e);
   if (state !== 'play') { tapAdvance(p); return; }
   if (p.x > W - 70 && p.y < 70) { paused = !paused; return; }
-  if (paused) { if (p.y > H / 2 + 50 && p.y < H / 2 + 110 && Math.abs(p.x - W / 2) < 130) { paused = false; state = 'title'; stateT = 0; return; } paused = false; return; }
+  if (paused) { if (p.y > H / 2 + 50 && p.y < H / 2 + 110 && Math.abs(p.x - W / 2) < 130) { paused = false; openMap(L.id, null); return; } paused = false; return; }
   const b = hitBtn(p); pointers.set(e.pointerId, b);
   if (b === 'jump') pressJump();
   if (b === 'arm') pressArm();
@@ -577,21 +579,119 @@ function startArea(n) {
   }
 }
 function tapAdvance(p) {
-  if (state === 'title') {
-    if (save.area >= 2) {
-      if (!p) return startArea(save.area >= 2 ? 2 : 1);
-      const b = titleBtns();
-      for (const k of b) if (Math.abs(p.x - k.x) < k.w / 2 && Math.abs(p.y - k.y) < k.h / 2) return startArea(k.n);
-      return;
-    }
-    startArea(1);
-  }
+  if (state === 'title') { openMap(map.sel || 1, null); }
+  else if (state === 'map') { mapTap(p); }
   else if (state === 'intro') { if (stateT > 0.4) beginPlay(); }
   else if (state === 'win') {
     if (stateT > 1.2) {
-      if (L.id < 4) startArea(L.id + 1);
-      else { state = 'title'; stateT = 0; }
+      const nxt = Math.min(L.id + 1, MAP_NODES.length);
+      openMap(L.id, nxt <= save.area && nxt <= 4 ? nxt : L.id);
     }
+  }
+}
+// ---------- mapa da ilha ----------
+const MAP_NODES = [
+  { n: 1, name: 'Praia', fx: 0.15, y: 410, col: '#2f9fd8' },
+  { n: 2, name: 'Floresta', fx: 0.34, y: 300, col: '#2e7d3a' },
+  { n: 3, name: 'Montanhas', fx: 0.56, y: 185, col: '#546eb4' },
+  { n: 4, name: 'Vulcão', fx: 0.78, y: 290, col: '#c8461e' },
+  { n: 5, name: 'Em breve', fx: 0.9, y: 430, col: '#6d6d6d', soon: true }
+];
+const map = { sel: 1, pos: 1, msg: null, msgT: 0 };
+function nodeXY(i) { const nd = MAP_NODES[i - 1]; return { x: nd.fx * W, y: nd.y }; }
+function segCtrl(i) { const a = nodeXY(i), b = nodeXY(i + 1); return { x: (a.x + b.x) / 2 + (i % 2 ? 40 : -40), y: Math.min(a.y, b.y) - 50 + (i % 2 ? 90 : 0) }; }
+function pathPoint(f) {
+  const i = Math.max(1, Math.min(MAP_NODES.length - 1, Math.floor(f))), t = Math.max(0, Math.min(1, f - i));
+  const a = nodeXY(i), b = nodeXY(i + 1), c = segCtrl(i), u = 1 - t;
+  return { x: u * u * a.x + 2 * u * t * c.x + t * t * b.x, y: u * u * a.y + 2 * u * t * c.y + t * t * b.y };
+}
+function openMap(at, goTo) {
+  state = 'map'; stateT = 0; paused = false; pointers.clear();
+  map.pos = at; map.sel = at;
+  if (goTo && goTo !== at) { map.sel = goTo; map.msg = 'Próxima área: ' + MAP_NODES[goTo - 1].name + '!'; map.msgT = 3; SFX.got(); }
+}
+function mapGo(n) {
+  if (n < 1 || n > MAP_NODES.length) return;
+  const nd = MAP_NODES[n - 1];
+  if (nd.soon) { map.msg = 'Essa área ainda está sendo construída!'; map.msgT = 2.2; SFX.toc(); return; }
+  if (n > save.area) { map.msg = 'Termine a área anterior primeiro!'; map.msgT = 2.2; SFX.toc(); return; }
+  map.sel = n; SFX.jump();
+}
+function mapPlay() { if (Math.abs(map.pos - map.sel) < 0.05) startArea(map.sel); }
+function mapPlayBtn() { return { x: W / 2, y: H - 46, w: 260, h: 58 }; }
+function mapTap(p) {
+  if (!p) return mapPlay();
+  const b = mapPlayBtn();
+  if (Math.abs(p.x - b.x) < b.w / 2 && Math.abs(p.y - b.y) < b.h / 2) return mapPlay();
+  for (let i = 1; i <= MAP_NODES.length; i++) {
+    const q = nodeXY(i);
+    if (Math.hypot(p.x - q.x, p.y - q.y) < 46) { if (i === map.sel && Math.abs(map.pos - map.sel) < 0.05) return mapPlay(); return mapGo(i); }
+  }
+}
+function updateMap(dt) {
+  const d = map.sel - map.pos;
+  if (Math.abs(d) > 0.01) map.pos += Math.sign(d) * Math.min(Math.abs(d), dt * 1.6); else map.pos = map.sel;
+  if (map.msgT > 0) map.msgT -= dt;
+}
+function drawMap() {
+  ctx.fillStyle = '#3ba3dc'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 3;
+  for (let i = 0; i < 14; i++) { const x = ((i * 157 + time * 12) % (W + 80)) - 40, y = 40 + (i * 71) % (H - 60); ctx.beginPath(); ctx.arc(x, y, 12, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
+  ctx.fillStyle = '#f2d38b'; ctx.beginPath(); ctx.ellipse(W * 0.52, 330, W * 0.48, 200, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#7cc46a'; ctx.beginPath(); ctx.ellipse(W * 0.5, 315, W * 0.43, 170, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#f2d38b'; ctx.beginPath(); ctx.ellipse(W * 0.16, 430, 120, 60, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#2e7d3a';
+  for (const t of [[0.27, 300], [0.31, 260], [0.38, 270], [0.42, 330], [0.29, 350], [0.36, 350]]) { ctx.beginPath(); ctx.arc(W * t[0], t[1], 22, 0, 7); ctx.fill(); ctx.fillStyle = '#5d4037'; ctx.fillRect(W * t[0] - 3, t[1] + 16, 6, 14); ctx.fillStyle = '#2e7d3a'; }
+  for (const m of [[0.52, 230, 80], [0.6, 210, 95], [0.66, 245, 70]]) {
+    const x = W * m[0], y = m[1]; ctx.fillStyle = '#8aa3c4'; ctx.beginPath(); ctx.moveTo(x - m[2], y + 40); ctx.lineTo(x, y - m[2] + 20); ctx.lineTo(x + m[2], y + 40); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(x - m[2] * 0.35, y - m[2] * 0.5 + 34); ctx.lineTo(x, y - m[2] + 20); ctx.lineTo(x + m[2] * 0.35, y - m[2] * 0.5 + 34); ctx.fill();
+  }
+  const vx = W * 0.8; ctx.fillStyle = '#4e342e'; ctx.beginPath(); ctx.moveTo(vx - 90, 330); ctx.lineTo(vx - 26, 220); ctx.lineTo(vx + 26, 220); ctx.lineTo(vx + 90, 330); ctx.fill();
+  ctx.fillStyle = '#ff6f00'; ctx.beginPath(); ctx.moveTo(vx - 26, 220); ctx.lineTo(vx + 26, 220); ctx.lineTo(vx + 14, 236); ctx.lineTo(vx - 14, 236); ctx.fill();
+  ctx.fillStyle = 'rgba(90,70,70,.55)'; for (let i = 0; i < 4; i++) { const t = (time * 0.25 + i / 4) % 1; ctx.beginPath(); ctx.arc(vx + t * 40, 210 - t * 90, 10 + t * 20, 0, 7); ctx.fill(); }
+  for (const x of [0.08, 0.2]) { ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(W * x, 440); ctx.quadraticCurveTo(W * x + 4, 410, W * x + 12, 392); ctx.stroke(); ctx.fillStyle = '#2fa84f'; for (let k = 0; k < 4; k++) { ctx.save(); ctx.translate(W * x + 12, 392); ctx.rotate(-Math.PI / 2 + (k - 1.5) * 0.8); ctx.beginPath(); ctx.ellipse(14, 0, 16, 5, 0, 0, 7); ctx.fill(); ctx.restore(); } }
+  ctx.save(); ctx.translate(W * 0.1, 470); ctx.rotate(-0.15); ctx.fillStyle = '#c7d0d9'; ctx.beginPath(); ctx.ellipse(0, 0, 34, 12, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#5fd0ff'; ctx.beginPath(); ctx.ellipse(10, -5, 10, 6, 0, Math.PI, 0); ctx.fill(); ctx.restore();
+  ctx.setLineDash([10, 9]); ctx.lineWidth = 6; ctx.lineCap = 'round';
+  for (let i = 1; i < MAP_NODES.length; i++) {
+    const a = nodeXY(i), b = nodeXY(i + 1), c = segCtrl(i);
+    ctx.strokeStyle = i < save.area ? '#ffffff' : 'rgba(255,255,255,.45)';
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(c.x, c.y, b.x, b.y); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  for (let i = 1; i <= MAP_NODES.length; i++) {
+    const nd = MAP_NODES[i - 1], q = nodeXY(i), locked = nd.soon || i > save.area, sel = i === map.sel;
+    if (sel) { ctx.strokeStyle = 'rgba(255,235,59,' + (0.5 + Math.sin(time * 5) * 0.4) + ')'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(q.x, q.y, 36, 0, 7); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(q.x, q.y + 26, 28, 8, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = locked ? '#8e8e8e' : nd.col; ctx.beginPath(); ctx.arc(q.x, q.y, 28, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = '900 24px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(nd.soon ? '?' : locked ? '🔒' : String(i), q.x, q.y + 1);
+    ctx.font = '800 16px system-ui,sans-serif'; const tw = ctx.measureText(nd.name).width + 18;
+    ctx.fillStyle = 'rgba(18,40,60,.8)'; rr(q.x - tw / 2, q.y + 36, tw, 24, 12); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillText(nd.name, q.x, q.y + 49);
+    if (save.done.includes(i)) {
+      ctx.save(); ctx.translate(q.x + 24, q.y - 24); ctx.rotate(time * 0.8);
+      ctx.fillStyle = '#FFD84D'; ctx.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? 6 : 14, a = k * Math.PI / 5 - Math.PI / 2; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+    }
+  }
+  const zp = pathPoint(map.pos), walking = Math.abs(map.sel - map.pos) > 0.01, face = map.sel >= map.pos ? 1 : -1;
+  const hop = walking ? Math.abs(Math.sin(time * 12)) * 6 : 0;
+  if (save.area >= 3 || save.done.includes(2)) drawDenteAt(zp.x - face * 34, zp.y - 6 - hop, face, true, 0.75);
+  ctx.save(); ctx.translate(zp.x, zp.y - 10 - hop); ctx.scale(0.75, 0.75); drawZipo(-20, -66, face, walking ? 'happy' : 'ok', time * 4); ctx.restore();
+  ctx.fillStyle = 'rgba(18,59,28,.85)'; rr(14, 14, 250, 46, 23); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = '900 22px system-ui,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('Ilha do Zipo', 30, 37);
+  const pcs = save.done.filter(n => n <= 4).length * 3;
+  ctx.fillStyle = 'rgba(18,59,28,.85)'; rr(W - 250, 14, 236, 46, 23); ctx.fill();
+  ctx.fillStyle = '#FFC93C'; ctx.font = '800 19px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Peças da nave: ' + pcs + ' / 12', W - 132, 37);
+  const b = mapPlayBtn(), ready = Math.abs(map.pos - map.sel) < 0.05;
+  ctx.fillStyle = ready ? 'rgba(46,125,58,.95)' : 'rgba(46,125,58,.5)'; rr(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 29); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.font = '900 24px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.fillText('JOGAR: ' + MAP_NODES[map.sel - 1].name, b.x, b.y + 1);
+  if (stateT < 6 && !map.msgT) { ctx.font = '700 15px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.fillText('Toque numa área para o Zipo ir até lá', W / 2, H - 92); }
+  if (map.msgT > 0) {
+    ctx.globalAlpha = Math.min(1, map.msgT * 2); ctx.font = '800 20px system-ui,sans-serif'; const tw = ctx.measureText(map.msg).width + 40;
+    ctx.fillStyle = 'rgba(255,201,60,.97)'; rr(W / 2 - tw / 2, 74, tw, 42, 21); ctx.fill(); ctx.fillStyle = '#5a3d00'; ctx.fillText(map.msg, W / 2, 96); ctx.globalAlpha = 1;
   }
 }
 function titleBtns() { const b = [{ n: 1, label: '1  Praia' }, { n: 2, label: '2  Floresta' }]; if (save.area >= 3) b.push({ n: 3, label: '3  Montanhas' }); if (save.area >= 4) b.push({ n: 4, label: '4  Vulcão' }); const w = b.length > 3 ? 172 : 215, gap = b.length > 3 ? 12 : 20, tot = b.length * w + (b.length - 1) * gap; b.forEach((o, i) => { o.x = W / 2 - tot / 2 + w / 2 + i * (w + gap); o.y = H - 92; o.w = w; o.h = 62; }); return b; }
@@ -641,6 +741,7 @@ function update(dt) {
   if (bubble) { bubble.t -= dt; if (bubble.t <= 0) bubble = null; }
   if (toast) { toast.t -= dt; if (toast.t <= 0) toast = null; }
 
+  if (state === 'map') { updateMap(dt); return; }
   if (state === 'intro') { updateIntro(dt); return; }
   if (state !== 'play' || paused) return;
 
@@ -1660,7 +1761,7 @@ function drawHUD() {
     ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = '900 44px system-ui,sans-serif'; ctx.fillText('PAUSA', W / 2, H / 2 - 30);
     ctx.font = '700 20px system-ui,sans-serif'; ctx.fillText('Toque na tela para continuar', W / 2, H / 2 + 14);
     ctx.fillStyle = 'rgba(255,255,255,.2)'; rr(W / 2 - 120, H / 2 + 52, 240, 52, 26); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = '800 19px system-ui,sans-serif'; ctx.fillText('Voltar ao início', W / 2, H / 2 + 79);
+    ctx.fillStyle = '#fff'; ctx.font = '800 19px system-ui,sans-serif'; ctx.fillText('Voltar ao mapa', W / 2, H / 2 + 79);
   }
 }
 function currentHint() {
@@ -1753,15 +1854,11 @@ function render() {
     title('ZIPO', H / 2 - 140, 110, '#7CE38B', '#123B1C');
     title('e a Nave Perdida', H / 2 - 60, 40, '#FFC93C', '#5a3d00');
     drawZipo(W / 2 - 20, H / 2 + 22 + Math.sin(time * 3) * 6, 1, Math.floor(time) % 4 === 0 ? 'happy' : 'ok', time * 2, 1.3);
-    if (save.area >= 2) {
-      drawDenteAt(W / 2 + 70, H / 2 + 108, -1, true, 1.1);
-      for (const b of titleBtns()) {
-        ctx.fillStyle = b.n === 4 ? 'rgba(200,70,30,.95)' : b.n === 3 ? 'rgba(84,110,180,.95)' : b.n === 2 ? 'rgba(46,125,58,.95)' : 'rgba(47,159,216,.95)'; rr(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 18); ctx.fill();
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
-        ctx.fillStyle = '#fff'; ctx.font = (b.w < 200 ? '800 20px' : '800 24px') + ' system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(b.label, b.x, b.y);
-      }
-    } else if (Math.floor(time * 2) % 2 === 0) title('Toque para começar', H - 62, 28, '#fff', '#123B1C');
-    ctx.font = '700 14px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.textAlign = 'center'; ctx.fillText('Versão de teste 5  •  Um jogo criado pelo Felipe', W / 2, H - 22);
+    if (save.area >= 2) drawDenteAt(W / 2 + 70, H / 2 + 108, -1, true, 1.1);
+    if (Math.floor(time * 2) % 2 === 0) title('Toque para começar', H - 62, 28, '#fff', '#123B1C');
+    ctx.font = '700 14px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.textAlign = 'center'; ctx.fillText('Versão de teste 6  •  Um jogo criado pelo Felipe', W / 2, H - 22);
+  } else if (state === 'map') {
+    ctx.restore(); ctx.save(); drawMap();
   } else if (state === 'intro') {
     drawWorld();
     if (stateT > 2.2) drawZipo(P.x, P.y, 1, P.expr, 0);
@@ -1815,7 +1912,7 @@ function loop(now) {
 }
 loadLevel(1);
 requestAnimationFrame(loop);
-window.__game = { get rocks() { return rocks; }, pressShoot, get boss() { return boss; }, get bossOn() { return bossOn; }, pressPunch, P, get L() { return L; }, get state() { return state; }, get rope() { return rope; }, get trex() { return trex; }, get chaseOn() { return chaseOn; }, pressArm, pressJump, keys, startArea, beginPlay };
+window.__game = { map, get save() { return save; }, openMap, mapTap, mapPlay,  get rocks() { return rocks; }, pressShoot, get boss() { return boss; }, get bossOn() { return bossOn; }, pressPunch, P, get L() { return L; }, get state() { return state; }, get rope() { return rope; }, get trex() { return trex; }, get chaseOn() { return chaseOn; }, pressArm, pressJump, keys, startArea, beginPlay };
 </script>
 </body>
 </html>
