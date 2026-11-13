@@ -36,7 +36,7 @@ function resize() {
 addEventListener('resize', resize); resize();
 
 // ---------- progresso salvo ----------
-let save = { area: 3 };
+let save = { area: 4 };
 try { const s = JSON.parse(localStorage.getItem('zipo_save') || '{}'); if (s.area) save.area = s.area; } catch (e) {}
 function unlock(a) { if (a > save.area) { save.area = a; try { localStorage.setItem('zipo_save', JSON.stringify(save)); } catch (e) {} } }
 
@@ -200,7 +200,48 @@ function makeMontanhas() {
     wreck: false
   };
 }
-const MAKERS = { 1: makePraia, 2: makeFloresta, 3: makeMontanhas };
+function makeVulcao() {
+  const sc = (x, min, max) => ({ x, min, max, dir: Math.random() < .5 ? 1 : -1, stun: 0, kind: 'scorp', t: 0, cd: 1 });
+  return {
+    id: 4, name: 'Área 4: O Vulcão', theme: 'volcano', W: 4700, next: 'Mais aventuras',
+    solids: [
+      { x: -300, y: 460, w: 1200, h: 200, k: 'basalt' },
+      { x: 1200, y: 460, w: 800, h: 200, k: 'basalt' },
+      { x: 1700, y: 360, w: 200, h: 100, k: 'basalt' },
+      { x: 2600, y: 460, w: 800, h: 200, k: 'basalt' },
+      { x: 3800, y: 460, w: 900, h: 200, k: 'basalt' },
+      { x: 4300, y: 280, w: 300, h: 180, k: 'basalt' },
+      { x: 4640, y: 120, w: 200, h: 340, k: 'basalt' }
+    ],
+    anchors: [
+      { x: 1000, y: 210, t: 'hook' },
+      { x: 1120, y: 200, t: 'hook' },
+      { x: 2120, y: 200, t: 'hook' },
+      { x: 2300, y: 190, t: 'hook', breaks: true },
+      { x: 2480, y: 200, t: 'hook' },
+      { x: 3520, y: 200, t: 'hook', move: { amp: 50, sp: 1.6 } },
+      { x: 3690, y: 195, t: 'hook' },
+      { x: 4302, y: 284, t: 'ledge', dir: 1 }
+    ],
+    checkpoints: [120, 1220, 2620, 3820],
+    deco: [200, 700, 1400, 2900, 3300, 4000],
+    pools: [],
+    pieces: [
+      { id: 10, name: 'Turbina', type: 'turbine', x: 1800, y: 324 },
+      { id: 11, name: 'Painel de Controle', type: 'console', x: 3320, y: 420 },
+      { id: 12, name: 'Núcleo de Fogo', type: 'core', x: 4500, y: 244 }
+    ],
+    crabs: [sc(500, 380, 640), sc(780, 680, 880), sc(1350, 1230, 1500), sc(1560, 1480, 1690), sc(1950, 1910, 1990),
+      sc(2750, 2640, 2900), sc(2950, 2850, 3050), sc(3120, 3050, 3200), sc(3250, 3180, 3380),
+      sc(3950, 3850, 4100), sc(4180, 4100, 4280)],
+    geysers: [{ x: 2210, period: 3.2, phase: 0 }, { x: 2390, period: 3.2, phase: 1.6 }, { x: 3605, period: 2.8, phase: 0.7 }],
+    rockZones: [[1250, 1950], [2650, 3350], [3850, 4280]],
+    trikes: [], pteros: [], knots: [],
+    dente: { x: 0, y: 0, st: 'ride' },
+    wreck: false
+  };
+}
+const MAKERS = { 1: makePraia, 2: makeFloresta, 3: makeMontanhas, 4: makeVulcao };
 
 let L = null;
 function loadLevel(n) {
@@ -211,6 +252,9 @@ function loadLevel(n) {
   collected = 0;
   boss = null; bossOn = false; shots = []; balls = []; waves = []; shootCd = 0; P.hasCannon = false; P.hearts = 5;
   if (!L.icicles) L.icicles = [];
+  if (!L.geysers) L.geysers = [];
+  rocks = []; rockT = 2;
+  if (n >= 4) P.hasCannon = true;
   for (const ic of L.icicles) { ic.st = 'hang'; ic.y = 40; ic.t = 0; ic.vy = 0; }
 }
 
@@ -228,7 +272,7 @@ addEventListener('keydown', e => {
   if (e.repeat) return;
   keys[e.code] = true;
   if (state !== 'play') {
-    if (state === 'title' && save.area >= 2) { if (e.code === 'Digit1') return startArea(1); if (e.code === 'Digit2') return startArea(2); if (e.code === 'Digit3' && save.area >= 3) return startArea(3); }
+    if (state === 'title' && save.area >= 2) { if (e.code === 'Digit1') return startArea(1); if (e.code === 'Digit2') return startArea(2); if (e.code === 'Digit3' && save.area >= 3) return startArea(3); if (e.code === 'Digit4' && save.area >= 4) return startArea(4); }
     tapAdvance(null); return;
   }
   if (['Space', 'ArrowUp', 'KeyW'].includes(e.code)) pressJump();
@@ -528,6 +572,7 @@ function startArea(n) {
     P.x = 120; P.y = GROUND - P.h; P.lastCP = 120; state = 'play'; stateT = 0; wreckShown = false;
     if (L.dente && L.dente.st === 'ride') resetTrail();
     if (n === 2) talk([['zipo', 'Que floresta escura... e cheia de dinossauros!', 2.8], ['zipo', 'Ouvi um chorinho lá na frente. Será que alguém precisa de ajuda?', 3.2]]);
+    else if (n === 4) talk([['zipo', 'Que calor! É um vulcão de verdade!', 2.6], ['dente', 'Escorpiões? Pode deixar comigo! NHAC!', 2.8], ['zipo', 'Cuidado com a lava, Dentinho!', 2.2]]);
     else talk([['zipo', 'Brrr! As Montanhas Geladas!', 2.4], ['dente', 'Meus dentinhos estão batendo de frio!', 2.6], ['zipo', 'Olha, uma peça brilhando ali na frente!', 2.6]]);
   }
 }
@@ -544,12 +589,12 @@ function tapAdvance(p) {
   else if (state === 'intro') { if (stateT > 0.4) beginPlay(); }
   else if (state === 'win') {
     if (stateT > 1.2) {
-      if (L.id < 3) startArea(L.id + 1);
+      if (L.id < 4) startArea(L.id + 1);
       else { state = 'title'; stateT = 0; }
     }
   }
 }
-function titleBtns() { const b = [{ n: 1, label: '1  Praia' }, { n: 2, label: '2  Floresta' }]; if (save.area >= 3) b.push({ n: 3, label: '3  Montanhas' }); const w = 215, gap = 20, tot = b.length * w + (b.length - 1) * gap; b.forEach((o, i) => { o.x = W / 2 - tot / 2 + w / 2 + i * (w + gap); o.y = H - 92; o.w = w; o.h = 62; }); return b; }
+function titleBtns() { const b = [{ n: 1, label: '1  Praia' }, { n: 2, label: '2  Floresta' }]; if (save.area >= 3) b.push({ n: 3, label: '3  Montanhas' }); if (save.area >= 4) b.push({ n: 4, label: '4  Vulcão' }); const w = b.length > 3 ? 172 : 215, gap = b.length > 3 ? 12 : 20, tot = b.length * w + (b.length - 1) * gap; b.forEach((o, i) => { o.x = W / 2 - tot / 2 + w / 2 + i * (w + gap); o.y = H - 92; o.w = w; o.h = 62; }); return b; }
 function beginPlay() {
   wreckShown = true; state = 'play'; stateT = 0;
   P.x = 200; P.y = GROUND - P.h; P.vx = 0; P.vy = 0; P.onGround = true;
@@ -603,7 +648,7 @@ function update(dt) {
     if (a.move) a.x = a.bx + Math.sin(time * a.move.sp) * a.move.amp;
     if (a.broken > 0) { a.broken -= dt; if (a.broken <= 0) a.broken = 0; }
   }
-  updateCrabs(dt); updateTrikes(dt); updatePteros(dt); updateDente(dt); updatePunch(dt); updateShots(dt); updateBoss(dt); updateIcicles(dt);
+  updateCrabs(dt); updateTrikes(dt); updatePteros(dt); updateDente(dt); updatePunch(dt); updateShots(dt); updateBoss(dt); updateIcicles(dt); updateVolcano(dt);
   if (L.boss && !boss && P.x > L.boss.startX) startBoss();
   L.crabs = updateBye(L.crabs, dt, true); L.trikes = updateBye(L.trikes, dt, true); L.pteros = updateBye(L.pteros, dt, false);
   P.exprT -= dt; if (P.exprT <= 0) P.expr = 'ok';
@@ -668,12 +713,12 @@ function update(dt) {
   if (P.onGround && !chaseOn) for (const c of L.checkpoints) if (P.x > c - 40 && c > P.lastCP) P.lastCP = c;
 
   if (P.y > 620) {
-    SFX.splash(); puff(P.x + P.w / 2, SEA_Y, 18, L.theme === 'forest' ? '#9cc46a' : '#bfe9ff', 260);
+    SFX.splash(); puff(P.x + P.w / 2, SEA_Y, 18, L.theme === 'volcano' ? '#ffb300' : L.theme === 'forest' ? '#9cc46a' : '#bfe9ff', 260);
     rope = null; arm = { st: 'idle' };
     if (chaseOn) { resetChase(); say('Ufa! Vamos de novo!', 1.6); }
     else {
       P.x = P.lastCP; P.y = GROUND - P.h - 40; P.vx = 0; P.vy = 0; P.expr = 'surprise'; P.exprT = 1.2;
-      const msgs = L.theme === 'forest' ? ['Eca! Lama de pântano!', 'Quase! Tenta de novo!', 'Blé! Que meleca verde!'] : ['Ufa! Robô não gosta de água!', 'Quase! Tenta de novo!', 'Brrr, que água gelada!'];
+      const msgs = L.theme === 'volcano' ? ['Ai ai ai, lava quente!', 'Ufa! Quase virei robô derretido!', 'Essa foi por pouco!'] : L.theme === 'forest' ? ['Eca! Lama de pântano!', 'Quase! Tenta de novo!', 'Blé! Que meleca verde!'] : ['Ufa! Robô não gosta de água!', 'Quase! Tenta de novo!', 'Brrr, que água gelada!'];
       say(msgs[Math.floor(Math.random() * 3)], 2);
     }
   }
@@ -734,7 +779,7 @@ function collect(p) {
   if (p.type === 'crystal' && boss && !L.boss.defeated) { L.boss.fled = true; bossOn = false; balls = []; waves = []; boss.st = 'fled'; SFX.roar(); talk([['zipo', 'Fugimos do Yeti! Peguei o cristal!', 2.6]]); }
   if (collected >= 3) {
     unlock(L.id + 1);
-    setTimeout(() => { if (state === 'play') { state = 'win'; stateT = 0; SFX.got(); } }, L.id === 1 ? 1600 : L.id === 2 ? 3200 : 2600);
+    setTimeout(() => { if (state === 'play') { state = 'win'; stateT = 0; SFX.got(); } }, L.id === 1 ? 1600 : L.id === 2 ? 3200 : 2400);
   }
 }
 
@@ -743,12 +788,18 @@ function updateCrabs(dt) {
   for (const c of L.crabs) {
     if (c.bye) continue;
     if (c.stun > 0) { c.stun -= dt; continue; }
-    c.x += c.dir * 70 * dt;
+    if (c.kind === 'scorp') {
+      c.t += dt; c.cd -= dt;
+      const dx = P.x + P.w / 2 - c.x;
+      if (c.st === 'strike') { c.x += c.dir * 300 * dt; if (c.t > 0.3) { c.st = null; c.cd = 1.5; } }
+      else if (c.st === 'aim') { if (c.t > 0.45) { c.st = 'strike'; c.t = 0; SFX.punch(); } }
+      else { c.x += c.dir * 80 * dt; if (Math.abs(dx) < 170 && Math.abs(P.y + P.h - GROUND) < 30 && c.cd <= 0) { c.dir = Math.sign(dx) || 1; c.st = 'aim'; c.t = 0; } }
+    } else c.x += c.dir * 70 * dt;
     if (c.x < c.min) { c.x = c.min; c.dir = 1; } if (c.x > c.max) { c.x = c.max; c.dir = -1; }
     const box = { x: c.x - 22, y: GROUND - 26, w: 44, h: 26 };
     if (!P.climb && overlap(P, box)) {
-      if (P.vy > 80 && P.y + P.h - box.y < 22) { P.vy = -520; c.stun = 3; SFX.boing(); puff(c.x, box.y, 8, '#ffd0c0'); P.expr = 'happy'; P.exprT = 1; }
-      else if (P.hurt <= 0 && P.inv <= 0) { knock(c.x); say('Ai! Caranguejo bravo!', 1.4); }
+      if (P.vy > 80 && P.y + P.h - box.y < 22) { P.vy = -520; SFX.boing(); P.expr = 'happy'; P.exprT = 1; if (c.kind === 'scorp') defeat(c, c.x, GROUND - 20, P.face); else { c.stun = 3; puff(c.x, box.y, 8, '#ffd0c0'); } }
+      else if (P.hurt <= 0 && P.inv <= 0) { knock(c.x); say(c.kind === 'scorp' ? 'Ai! Ferroada de escorpião!' : c.kind === 'snow' ? 'Ei! Boneco de neve bravo!' : 'Ai! Caranguejo bravo!', 1.4); }
     }
   }
 }
@@ -823,7 +874,7 @@ function updateDente(dt) {
     d.t += dt; const k = Math.min(1, d.t / 0.6), tx = P.x + P.w / 2 - P.face * 60, ty = P.y + P.h;
     d.x = d.fx + (tx - d.fx) * k; d.y = d.fy + (ty - d.fy) * k - Math.sin(k * Math.PI) * 80;
     if (k >= 1) { d.st = 'ride'; SFX.rawr(); resetTrail(); }
-  } else if (d.st === 'ride') {
+  } else if (d.st === 'ride' || d.st === 'bite') {
     const fx = P.x + P.w / 2, fy = P.y + P.h, last = trail[trail.length - 1];
     if (!last || Math.hypot(fx - last.x, fy - last.y) > 160) resetTrail();
     else if (Math.hypot(fx - last.x, fy - last.y) > 2) { trail.push({ x: fx, y: fy }); if (trail.length > 300) trail.shift(); }
@@ -834,12 +885,67 @@ function updateDente(dt) {
       need -= seg;
     }
     if (need > 0 && trail.length) { tx = fx - P.face * 62; ty = fy; }
-    const ox = d.x; d.x += (tx - d.x) * Math.min(1, dt * 14); d.y += (ty - d.y) * Math.min(1, dt * 14);
-    const mv = d.x - ox; if (Math.abs(mv) > 0.3) d.face = Math.sign(mv); d.moving = Math.abs(mv) > 0.6;
+    d.biteCd = (d.biteCd || 0) - dt;
+    if (d.st === 'ride' && d.biteCd <= 0 && caught <= 0 && !P.climb) { const tg = biteTarget(d); if (tg) { d.st = 'bite'; d.t = 0; d.bt = tg; d.bfx = d.x; d.bfy = d.y; d.bitten = false; d.face = Math.sign(tg.x - d.x) || 1; SFX.rawr(); } }
+    if (d.st === 'bite') {
+      d.t += dt; const o = d.bt;
+      if (d.t < 0.28) { const k = d.t / 0.28; d.x = d.bfx + (o.x - d.bfx) * k; d.y = d.bfy + (o.y - d.bfy) * k - Math.sin(k * Math.PI) * 55; }
+      else {
+        if (!d.bitten) { d.bitten = true; doBite(o); d.bfx = d.x; d.bfy = d.y; }
+        const k = Math.min(1, (d.t - 0.28) / 0.35); d.x = d.bfx + (tx - d.bfx) * k; d.y = d.bfy + (ty - d.bfy) * k - Math.sin(k * Math.PI) * 30;
+        if (k >= 1) { d.st = 'ride'; d.biteCd = o.kind === 'yeti' ? 4 : 1.6; }
+      }
+    } else {
+      const ox = d.x; d.x += (tx - d.x) * Math.min(1, dt * 14); d.y += (ty - d.y) * Math.min(1, dt * 14);
+      const mv = d.x - ox; if (Math.abs(mv) > 0.3) d.face = Math.sign(mv); d.moving = Math.abs(mv) > 0.6;
+    }
     for (const s of L.solids) if (s.thorn && !s.gone && Math.abs(P.x + P.w / 2 - (s.x + s.w / 2)) < 110) {
       s.gone = true; SFX.chomp(); puff(s.x + s.w / 2, s.y + 60, 24, '#4a6b2a', 220); say('Nhac nhac nhac! Espinho não me assusta!', 2.4, 'dente');
     }
     if (!chaseOn && L.chase && P.x > L.chase.startX && !L.chase.done) startChase();
+  }
+}
+
+function biteTarget(d) {
+  let best = null, bd = 160;
+  for (const c of L.crabs) if (!c.bye) { const dd = Math.hypot(c.x - d.x, (GROUND - 14) - d.y); if (dd < bd) { bd = dd; best = { kind: 'crab', o: c, x: c.x, y: GROUND - 6 }; } }
+  for (const q of L.pteros) if (!q.bye && q.y > GROUND - 170) { const dd = Math.hypot(q.x - d.x, q.y - d.y); if (dd < bd) { bd = dd; best = { kind: 'ptero', o: q, x: q.x, y: q.y + 20 }; } }
+  for (const t of L.trikes) if (!t.bye) { const dd = Math.abs(t.x - d.x) - 50; if (dd < bd && Math.abs(d.y - GROUND) < 40) { bd = dd; best = { kind: 'trike', o: t, x: t.x - Math.sign(t.x - d.x) * 50, y: GROUND - 10 }; } }
+  if (boss && bossOn && boss.st !== 'enter' && boss.st !== 'down' && boss.y > -20) { const dd = Math.abs(boss.x - d.x) - 55; if (dd < bd) { bd = dd; best = { kind: 'yeti', o: boss, x: boss.x - Math.sign(boss.x - d.x) * 56, y: GROUND - 10 }; } }
+  return best;
+}
+function doBite(tg) {
+  const o = tg.o, dir = Math.sign(o.x - L.dente.x) || 1;
+  SFX.chomp(); popText(tg.x, tg.y - 50, 'NHAC!', '#ffb74d'); sparkle(tg.x, tg.y - 20, 10);
+  L.dente.kills = (L.dente.kills || 0);
+  if (tg.kind === 'crab' || tg.kind === 'ptero') { if (!o.bye) { defeat(o, o.x, tg.y - 10, dir); L.dente.kills++; } }
+  else if (tg.kind === 'trike') { o.hp = (o.hp == null ? 3 : o.hp) - 1; o.flash = .25; if (o.hp <= 0) { defeat(o, o.x, GROUND - 50, dir); L.dente.kills++; } }
+  else if (tg.kind === 'yeti') { bossHit(); }
+  if (Math.random() < 0.35) say(['Rawr! Toma essa!', 'NHAC! Ninguém mexe com o Zipo!', 'Meus dentinhos funcionam!'][Math.floor(Math.random() * 3)], 1.6, 'dente');
+}
+
+// ---------- vulcão: gêiseres e pedras ----------
+let rocks = [], rockT = 2;
+function geyserPhase(g) { const c = (time + g.phase) % g.period; return c > g.period - 1.2 ? 'erupt' : c > g.period - 2.0 ? 'warn' : 'idle'; }
+function updateVolcano(dt) {
+  for (const g of L.geysers) {
+    if (geyserPhase(g) === 'erupt') {
+      if (Math.random() < 0.6) parts.push({ x: g.x + (Math.random() - .5) * 40, y: SEA_Y - Math.random() * 300, vx: 0, vy: -200, life: .4, max: .4, col: Math.random() < .5 ? '#ffb300' : '#ff5722', r: 6 + Math.random() * 6 });
+      if (Math.abs(P.x + P.w / 2 - g.x) < 34 && P.y + P.h > 150 && P.inv <= 0) { hurtZipo(g.x); P.vy = -650; say('Ai! Que quente!', 1.4); }
+    }
+  }
+  if (L.rockZones) {
+    const inZone = L.rockZones.some(z => P.x > z[0] && P.x < z[1]);
+    rockT -= dt;
+    if (inZone && rockT <= 0 && state === 'play') { rocks.push({ x: P.x + P.w / 2 + P.face * (60 + Math.random() * 160) - 40, y: -40, vy: 120 }); rockT = 2.4 + Math.random() * 1.6; }
+    for (const r of rocks) {
+      r.vy += 700 * dt; r.y += r.vy * dt;
+      if (Math.random() < 0.5) parts.push({ x: r.x, y: r.y - 14, vx: 0, vy: -40, life: .4, max: .4, col: '#ff7043', r: 5 });
+      if (Math.abs(r.x - (P.x + P.w / 2)) < 30 && r.y > P.y && r.y < P.y + P.h + 10) { r.dead = true; hurtZipo(r.x); say('Ui! Pedra de fogo!', 1.4); puff(r.x, r.y, 12, '#ff8a65', 200); }
+      for (const sh of shots) if (!r.dead && Math.hypot(sh.x - r.x, sh.y - r.y) < 24) { r.dead = true; sh.life = 0; puff(r.x, r.y, 12, '#ff8a65', 200); popText(r.x, r.y - 20, 'PUF!', '#ffcc80'); }
+      if (r.y > GROUND - 10) { r.dead = true; puff(r.x, GROUND - 4, 14, '#ff8a65', 220); SFX.stomp(); }
+    }
+    rocks = rocks.filter(r => !r.dead);
   }
 }
 
@@ -946,6 +1052,14 @@ function drawSkyForest() {
 }
 function drawSea() {
   const forest = L.theme === 'forest';
+  if (L.theme === 'volcano') {
+    ctx.fillStyle = '#ff6f00'; ctx.fillRect(0, SEA_Y, W, H - SEA_Y); ctx.fillStyle = '#e65100'; ctx.fillRect(0, SEA_Y + 30, W, H);
+    ctx.strokeStyle = '#ffd54f'; ctx.lineWidth = 4; ctx.beginPath();
+    for (let x = -20; x <= W + 20; x += 10) { const wx = x + camX; const y = SEA_Y + Math.sin(wx * 0.02 + time * 1.5) * 4; x === -20 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,235,59,.8)'; for (let i = 0; i < 10; i++) { const x = ((i * 157 - camX * 0.9) % W + W) % W, r = 4 + Math.abs(Math.sin(time * 2 + i)) * 7; ctx.beginPath(); ctx.arc(x, SEA_Y + 12 + (i % 3) * 10, r, 0, 7); ctx.fill(); }
+    return;
+  }
   if (L.theme === 'snow') { ctx.fillStyle = '#4fa3c7'; ctx.fillRect(0, SEA_Y, W, H - SEA_Y); ctx.fillStyle = '#3b88ad'; ctx.fillRect(0, SEA_Y + 34, W, H); ctx.fillStyle = 'rgba(225,245,254,.8)'; for (let i = 0; i < 12; i++) { const x = ((i * 137 - camX * 0.9) % W + W) % W; rr(x, SEA_Y - 2, 46, 8, 4); ctx.fill(); } return; }
   ctx.fillStyle = forest ? '#5d8a2f' : '#2f9fd8'; ctx.fillRect(0, SEA_Y, W, H - SEA_Y);
   ctx.fillStyle = forest ? '#4a7225' : '#1f86c0'; ctx.fillRect(0, SEA_Y + 34, W, H);
@@ -990,6 +1104,12 @@ function drawSolids() {
       ctx.fillStyle = '#7a4f2a'; rr(s.x, s.y, s.w, s.h, 14); ctx.fill();
       ctx.fillStyle = '#c99a63'; ctx.beginPath(); ctx.ellipse(s.x + s.w - 10, s.y + s.h / 2, 9, s.h / 2 - 3, 0, 0, 7); ctx.fill();
       ctx.strokeStyle = '#7a4f2a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(s.x + s.w - 10, s.y + s.h / 2, 4, 8, 0, 0, 7); ctx.stroke();
+    } else if (s.k === 'basalt') {
+      ctx.fillStyle = '#3e3533'; rr(s.x, s.y, s.w, s.h + 40, 12); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,112,67,' + (0.55 + Math.sin(time * 3 + s.x) * 0.25) + ')'; ctx.lineWidth = 3;
+      for (let i = 0; i < s.w / 70; i++) { const x0 = s.x + 20 + i * 70; ctx.beginPath(); ctx.moveTo(x0, s.y + 30); ctx.lineTo(x0 + 14, s.y + 52); ctx.lineTo(x0 + 4, s.y + 74); ctx.lineTo(x0 + 22, s.y + 96); ctx.stroke(); }
+      ctx.fillStyle = '#2a2322'; rr(s.x, s.y - 3, s.w, 16, 8); ctx.fill();
+      ctx.fillStyle = '#4e4240'; for (let i = 0; i < s.w / 24; i++) { ctx.beginPath(); ctx.arc(s.x + 12 + i * 24, s.y + 2, 5, Math.PI, 0); ctx.fill(); }
     } else if (s.k === 'snow') {
       ctx.fillStyle = '#cfe3f5'; rr(s.x, s.y, s.w, s.h + 40, 14); ctx.fill();
       ctx.fillStyle = '#b3cde6'; for (let i = 0; i < s.w / 60; i++) { ctx.beginPath(); ctx.arc(s.x + 30 + i * 60, s.y + 60 + (i % 3) * 22, 10, 0, 7); ctx.fill(); }
@@ -1029,10 +1149,10 @@ function drawAnchors() {
         continue;
       }
       const shakeX = rope && rope.a === a && a.breaks && rope.t > 1.0 ? (Math.random() - .5) * 6 : 0;
-      ctx.strokeStyle = a.breaks ? '#8a7a3a' : '#3c8a3a'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(topX, 0);
-      ctx.quadraticCurveTo((topX + a.x) / 2 + Math.sin(time) * 8, a.y / 2, a.x + shakeX, a.y - 14); ctx.stroke();
+      ctx.strokeStyle = L.theme === 'volcano' ? (a.breaks ? '#8d6e63' : '#90a4ae') : a.breaks ? '#8a7a3a' : '#3c8a3a'; ctx.lineWidth = 5; if (L.theme === 'volcano') ctx.setLineDash([8, 5]); ctx.beginPath(); ctx.moveTo(topX, 0);
+      ctx.quadraticCurveTo((topX + a.x) / 2 + Math.sin(time) * 8, a.y / 2, a.x + shakeX, a.y - 14); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle = a.breaks ? '#a89a4a' : '#4caf50';
-      for (let i = 1; i < 5; i++) { const t = i / 5, yy = t * a.y, xx = topX + (a.x - topX) * t; ctx.beginPath(); ctx.ellipse(xx + (i % 2 ? 9 : -9), yy, 9, 4, i % 2 ? .5 : -.5, 0, 7); ctx.fill(); }
+      if (L.theme !== 'volcano') for (let i = 1; i < 5; i++) { const t = i / 5, yy = t * a.y, xx = topX + (a.x - topX) * t; ctx.beginPath(); ctx.ellipse(xx + (i % 2 ? 9 : -9), yy, 9, 4, i % 2 ? .5 : -.5, 0, 7); ctx.fill(); }
       if (a.breaks) { ctx.strokeStyle = '#5a3d25'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(a.x - 6, a.y - 40); ctx.lineTo(a.x + 2, a.y - 34); ctx.lineTo(a.x - 4, a.y - 28); ctx.stroke(); }
       ctx.strokeStyle = forest ? (a.breaks ? '#e08a2e' : '#f2b705') : '#f2b705'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(a.x + shakeX, a.y, 13, 0, 7); ctx.stroke();
       ctx.strokeStyle = 'rgba(255,230,120,' + (0.35 + Math.sin(time * 4) * 0.25) + ')'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(a.x, a.y, 20, 0, 7); ctx.stroke();
@@ -1063,6 +1183,15 @@ function drawPiece(p) {
   } else if (p.type === 'shield') {
     ctx.fillStyle = '#5fd0ff'; ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(18, -12); ctx.lineTo(14, 8); ctx.lineTo(0, 20); ctx.lineTo(-14, 8); ctx.lineTo(-18, -12); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = '#c7f1ff'; ctx.lineWidth = 3; ctx.stroke(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, -2, 5, 0, 7); ctx.fill();
+  } else if (p.type === 'turbine') {
+    ctx.fillStyle = '#90a4ae'; ctx.beginPath(); ctx.arc(0, 0, 18, 0, 7); ctx.fill(); ctx.fillStyle = '#37474f'; ctx.beginPath(); ctx.arc(0, 0, 13, 0, 7); ctx.fill();
+    ctx.save(); ctx.rotate(time * 6); ctx.fillStyle = '#cfd8dc'; for (let i = 0; i < 5; i++) { ctx.rotate(Math.PI * 2 / 5); ctx.beginPath(); ctx.ellipse(6, 0, 7, 3, 0.4, 0, 7); ctx.fill(); } ctx.restore();
+  } else if (p.type === 'console') {
+    ctx.fillStyle = '#546e7a'; rr(-20, -14, 40, 28, 5); ctx.fill(); ctx.fillStyle = '#80deea'; rr(-15, -10, 18, 12, 2); ctx.fill();
+    ctx.fillStyle = Math.floor(time * 4) % 2 ? '#ff5252' : '#69f0ae'; ctx.beginPath(); ctx.arc(10, -4, 4, 0, 7); ctx.fill(); ctx.fillStyle = '#ffd740'; ctx.fillRect(-14, 5, 28, 4);
+  } else if (p.type === 'core') {
+    ctx.fillStyle = '#ff7043'; ctx.beginPath(); ctx.arc(0, 0, 16 + Math.sin(time * 6) * 2, 0, 7); ctx.fill(); ctx.fillStyle = '#ffeb3b'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#b0bec5'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 20, 0, 7); ctx.stroke();
   } else if (p.type === 'cannon') {
     ctx.fillStyle = '#455a64'; rr(-20, -9, 34, 18, 6); ctx.fill(); ctx.fillStyle = '#29b6f6'; ctx.beginPath(); ctx.arc(16, 0, 9, 0, 7); ctx.fill();
     ctx.fillStyle = '#90a4ae'; ctx.fillRect(-14, 7, 8, 10); ctx.fillStyle = '#e1f5fe'; ctx.beginPath(); ctx.arc(18, -2, 3, 0, 7); ctx.fill();
@@ -1099,6 +1228,7 @@ function drawWreck(x) {
 }
 function drawCrab(c) {
   if (c.kind === 'snow') return drawSnowman(c);
+  if (c.kind === 'scorp') return drawScorp(c);
   const x = c.x, y = GROUND, st = c.stun > 0, step = Math.sin(time * 14) * (st ? 0 : 3);
   ctx.save(); ctx.translate(x, y); if (st) { ctx.scale(1, -1); ctx.translate(0, 26); }
   ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 3;
@@ -1196,7 +1326,7 @@ function resetTrail() {
   trail = [{ x: fx - P.face * 62, y: fy }, { x: fx, y: fy }];
   if (d) { d.x = fx - P.face * 62; d.y = fy; d.face = P.face; }
 }
-function drawDenteRiding() { const d = L.dente; if (d && d.st === 'ride') drawDenteAt(d.x, d.y - (d.moving ? Math.abs(Math.sin(time * 14)) * 5 : 0), d.face || P.face, true, 1); }
+function drawDenteRiding() { const d = L.dente; if (!d) return; if (d.st === 'ride') drawDenteAt(d.x, d.y - (d.moving ? Math.abs(Math.sin(time * 14)) * 5 : 0), d.face || P.face, true, 1); else if (d.st === 'bite') drawDenteAt(d.x, d.y, d.face, false, 1.15); }
 function drawTrex() {
   if (!trex) return;
   const x = trex.x, y = GROUND + trex.y, run = trex.st === 'run' || trex.st === 'leave', st = Math.sin(trex.step * 10) * (run ? 10 : 0);
@@ -1237,6 +1367,59 @@ function drawSkySnow() {
   for (let i = 0; i < 70; i++) {
     const x = ((i * 97 + Math.sin(time + i) * 30 - camX * 0.5) % W + W) % W, y = (i * 53 + time * (40 + (i % 5) * 12)) % H;
     ctx.beginPath(); ctx.arc(x, y, 1.5 + (i % 3), 0, 7); ctx.fill();
+  }
+}
+function drawSkyVolcano() {
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#2b0f12'); g.addColorStop(.55, '#7a2a18'); g.addColorStop(1, '#d9572b');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const vx = W * 0.62 - camX * 0.08;
+  ctx.fillStyle = '#3a1f1c'; ctx.beginPath(); ctx.moveTo(vx - 380, 470); ctx.lineTo(vx - 70, 170); ctx.lineTo(vx + 70, 170); ctx.lineTo(vx + 380, 470); ctx.fill();
+  ctx.fillStyle = '#ff6f00'; ctx.beginPath(); ctx.moveTo(vx - 70, 170); ctx.lineTo(vx + 70, 170); ctx.lineTo(vx + 40, 200); ctx.lineTo(vx - 40, 200); ctx.fill();
+  ctx.strokeStyle = '#ff8f00'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(vx - 20, 190); ctx.quadraticCurveTo(vx - 60, 300, vx - 110, 420); ctx.moveTo(vx + 25, 190); ctx.quadraticCurveTo(vx + 70, 320, vx + 140, 440); ctx.stroke();
+  ctx.fillStyle = 'rgba(80,60,60,.55)'; for (let i = 0; i < 6; i++) { const t = (time * 0.15 + i / 6) % 1; ctx.beginPath(); ctx.arc(vx + Math.sin(t * 6 + i) * 30 + t * 120, 160 - t * 160, 26 + t * 50, 0, 7); ctx.fill(); }
+  for (let layer = 0; layer < 2; layer++) {
+    const par = layer ? 0.45 : 0.25;
+    for (let i = 0; i < 8; i++) {
+      const x = ((i * 520 + layer * 260 - camX * par) % 4160 + 4160) % 4160 - 300; if (x < -300 || x > W + 300) continue;
+      ctx.fillStyle = layer ? '#4a2622' : '#5c2f27'; ctx.beginPath(); ctx.moveTo(x - 200, 480); ctx.lineTo(x - 40, 330 - layer * 30 - (i % 3) * 30); ctx.lineTo(x + 60, 350 - layer * 30); ctx.lineTo(x + 220, 480); ctx.fill();
+    }
+  }
+  for (let i = 0; i < 40; i++) { const x = ((i * 113 - camX * 0.4) % W + W) % W, y = H - ((i * 71 + time * (30 + (i % 4) * 15)) % H); ctx.fillStyle = i % 2 ? 'rgba(255,183,77,.9)' : 'rgba(255,87,34,.9)'; ctx.fillRect(x, y, 3, 3); }
+}
+function drawDeadTree(x) {
+  ctx.strokeStyle = '#2b2321'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, 462); ctx.lineTo(x + 4, 380); ctx.lineTo(x - 20, 340); ctx.moveTo(x + 4, 395); ctx.lineTo(x + 30, 360); ctx.lineTo(x + 40, 330); ctx.stroke();
+  ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x - 10, 360); ctx.lineTo(x - 34, 352); ctx.moveTo(x + 22, 370); ctx.lineTo(x + 46, 372); ctx.stroke();
+}
+function drawScorp(c) {
+  const x = c.x, y = GROUND, aim = c.st === 'aim', strike = c.st === 'strike', step = Math.sin(time * 16 + c.min) * 3;
+  ctx.save(); ctx.translate(x, y); ctx.scale(c.dir, 1);
+  ctx.strokeStyle = '#4a148c'; ctx.lineWidth = 3;
+  for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(-10 + i * 7, -10); ctx.lineTo(-14 + i * 7 + (i % 2 ? step : -step), 0); ctx.stroke(); }
+  ctx.fillStyle = '#7b1fa2'; ctx.beginPath(); ctx.ellipse(0, -13, 20, 10, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#8e24aa'; ctx.beginPath(); ctx.arc(20, -20, 6, 0, 7); ctx.arc(26, -10, 6, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#8e24aa'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(14, -14); ctx.lineTo(20, -20); ctx.moveTo(14, -10); ctx.lineTo(26, -10); ctx.stroke();
+  const tx = aim ? -8 : strike ? 10 : -14, ty = aim ? -54 : strike ? -40 : -44;
+  ctx.strokeStyle = '#6a1b9a'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-18, -14); ctx.quadraticCurveTo(-34, -40, tx, ty); ctx.stroke();
+  ctx.fillStyle = aim || strike ? '#ff5252' : '#ffb300'; ctx.beginPath(); ctx.moveTo(tx - 6, ty - 2); ctx.lineTo(tx + 10, ty + 6); ctx.lineTo(tx + 2, ty - 8); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(12, -19, 3.5, 0, 7); ctx.fill(); ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(13, -19, 1.8, 0, 7); ctx.fill();
+  ctx.restore();
+  if (aim) { ctx.fillStyle = '#ffeb3b'; ctx.font = '900 24px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.fillText('!', x, GROUND - 66 - Math.abs(Math.sin(time * 12)) * 5); }
+}
+function drawVolcanoStuff() {
+  for (const g of (L.geysers || [])) {
+    const ph = geyserPhase(g);
+    if (ph === 'warn') { ctx.fillStyle = 'rgba(255,235,59,.9)'; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(g.x - 18 + i * 12, SEA_Y + 4 - Math.abs(Math.sin(time * 10 + i)) * 10, 5, 0, 7); ctx.fill(); } }
+    if (ph === 'erupt') {
+      const hgt = SEA_Y - 150 + Math.sin(time * 20) * 10;
+      ctx.fillStyle = 'rgba(255,111,0,.9)'; rr(g.x - 26, SEA_Y - hgt, 52, hgt, 22); ctx.fill();
+      ctx.fillStyle = 'rgba(255,235,59,.85)'; rr(g.x - 12, SEA_Y - hgt + 10, 24, hgt - 10, 12); ctx.fill();
+    }
+  }
+  for (const r of rocks) {
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(r.x, GROUND + 2, 22 - Math.max(0, (GROUND - r.y) / 40), 6, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#5d4037'; ctx.beginPath(); ctx.arc(r.x, r.y, 15, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ff7043'; ctx.beginPath(); ctx.arc(r.x - 4, r.y - 4, 6, 0, 7); ctx.fill();
   }
 }
 function drawPine(x) {
@@ -1392,7 +1575,7 @@ function drawPlayer() {
   }
 }
 function speakerPos(who) {
-  if (who === 'dente' && L && L.dente) return { x: L.dente.x - camX, y: (L.dente.st === 'ride' ? L.dente.y - 62 : GROUND - 70) };
+  if (who === 'dente' && L && L.dente) return { x: L.dente.x - camX, y: (L.dente.st === 'ride' || L.dente.st === 'bite' ? L.dente.y - 62 : GROUND - 70) };
   if (who === 'trex' && trex) return { x: Math.max(80, trex.x + 180 - camX), y: GROUND - 230 + trex.y };
   return { x: P.x + P.w / 2 - camX, y: P.y - 30 };
 }
@@ -1492,12 +1675,19 @@ function currentHint() {
     if (x > 1150 && x < 1300 && !L.pieces[0].got && P.y > 350) return 'Use o BRAÇO para agarrar a beirada!';
     if (x > 2080 && x < 2200) return 'Agarre um gancho, balance e pegue o próximo!';
     if (x > 2700 && x < 2850 && !L.pieces[2].got) return 'A peça está na água! Use o BRAÇO para puxar!';
-  } else {
+  } else if (L.id === 2) {
     if (x < 560 && stateT > 6.2 && stateT < 13) return 'Toque em SOCO para bater nos dinossauros!';
     if (x > 560 && x < 720) return 'Três cipós seguidos! Toque no BRAÇO no meio do balanço';
     if (x > 1330 && x < 1760 && P.y > 350 && !L.pieces[0].got) return 'Tricerátops! Dê 3 SOCOS ou pule nas costas dele!';
     if (x > 1850 && x < 2010 && P.y < 300) return 'Cipós que se mexem e um que arrebenta. Atenção!';
     if (L.dente.st === 'trapped' && x > 2850 && x < 3250) return 'Puxe o nó dos espinhos com o BRAÇO!';
+  }
+  if (L.id === 4) {
+    if (x < 600 && stateT > 8.5 && stateT < 15) return 'O Dentinho morde as criaturas que chegam perto!';
+    if (x > 820 && x < 960) return 'Lava! Use as correntes para atravessar';
+    if (x > 1900 && x < 2020 && P.y > 380) return 'Cuidado com os gêiseres de lava!';
+    if (x > 1250 && x < 1350) return 'Pedras de fogo! Fique de olho nas sombras';
+    if (x > 4150 && x < 4300 && P.y > 350) return 'Agarre a beirada com o BRAÇO!';
   }
   if (L.id === 3) {
     if (bossOn) return time - L.boss.t0 < 7 ? 'Atire 20 vezes no Yeti... ou fuja pelos ganchos!' : '';
@@ -1510,9 +1700,9 @@ function currentHint() {
   return '';
 }
 function drawWorld() {
-  if (L.theme === 'forest') drawSkyForest(); else if (L.theme === 'snow') drawSkySnow(); else drawSkyBeach();
+  if (L.theme === 'forest') drawSkyForest(); else if (L.theme === 'snow') drawSkySnow(); else if (L.theme === 'volcano') drawSkyVolcano(); else drawSkyBeach();
   ctx.save(); ctx.translate(-camX, 0);
-  for (const x of L.deco) if (x > camX - 120 && x < camX + W + 60) { if (L.theme === 'forest') drawFern(x); else if (L.theme === 'snow') drawPine(x); else drawPalm(x); }
+  for (const x of L.deco) if (x > camX - 120 && x < camX + W + 60) { if (L.theme === 'forest') drawFern(x); else if (L.theme === 'snow') drawPine(x); else if (L.theme === 'volcano') drawDeadTree(x); else drawPalm(x); }
   ctx.restore();
   drawSea();
   ctx.save(); ctx.translate(-camX, 0);
@@ -1522,6 +1712,7 @@ function drawWorld() {
   if (wreckShown && L.wreck) drawWreck(150);
   drawAnchors();
   drawIcicles();
+  drawVolcanoStuff();
   drawDente();
   for (const p of L.pieces) if (!p.got && !p.hidden && !(p.water && !p.pulled)) drawPiece(p);
   for (const c of L.crabs) if (c.x > camX - 60 && c.x < camX + W + 60) byeWrap(c, c.x, GROUND - 16, () => drawCrab(c));
@@ -1565,12 +1756,12 @@ function render() {
     if (save.area >= 2) {
       drawDenteAt(W / 2 + 70, H / 2 + 108, -1, true, 1.1);
       for (const b of titleBtns()) {
-        ctx.fillStyle = b.n === 3 ? 'rgba(84,110,180,.95)' : b.n === 2 ? 'rgba(46,125,58,.95)' : 'rgba(47,159,216,.95)'; rr(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 18); ctx.fill();
+        ctx.fillStyle = b.n === 4 ? 'rgba(200,70,30,.95)' : b.n === 3 ? 'rgba(84,110,180,.95)' : b.n === 2 ? 'rgba(46,125,58,.95)' : 'rgba(47,159,216,.95)'; rr(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 18); ctx.fill();
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
-        ctx.fillStyle = '#fff'; ctx.font = '800 24px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(b.label, b.x, b.y);
+        ctx.fillStyle = '#fff'; ctx.font = (b.w < 200 ? '800 20px' : '800 24px') + ' system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(b.label, b.x, b.y);
       }
     } else if (Math.floor(time * 2) % 2 === 0) title('Toque para começar', H - 62, 28, '#fff', '#123B1C');
-    ctx.font = '700 14px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.textAlign = 'center'; ctx.fillText('Versão de teste 4  •  Um jogo criado pelo Felipe', W / 2, H - 22);
+    ctx.font = '700 14px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.textAlign = 'center'; ctx.fillText('Versão de teste 5  •  Um jogo criado pelo Felipe', W / 2, H - 22);
   } else if (state === 'intro') {
     drawWorld();
     if (stateT > 2.2) drawZipo(P.x, P.y, 1, P.expr, 0);
@@ -1598,16 +1789,17 @@ function render() {
     if (state === 'play') { drawButtons(); drawHUD(); }
     if (state === 'win') {
       ctx.fillStyle = 'rgba(11,29,58,.75)'; ctx.fillRect(0, 0, W, H);
-      title(L.id === 3 ? (L.boss.defeated ? 'YETI DERROTADO!' : 'VOCÊ FUGIU DO YETI!') : L.id === 2 ? 'FLORESTA COMPLETA!' : 'VOCÊ CONSEGUIU!', H / 2 - 140, 52, '#FFC93C', '#5a3d00');
+      title(L.id === 4 ? 'VULCÃO COMPLETO!' : L.id === 3 ? (L.boss.defeated ? 'YETI DERROTADO!' : 'VOCÊ FUGIU DO YETI!') : L.id === 2 ? 'FLORESTA COMPLETA!' : 'VOCÊ CONSEGUIU!', H / 2 - 140, 52, '#FFC93C', '#5a3d00');
       ctx.fillStyle = '#fff'; ctx.font = '700 22px system-ui,sans-serif'; ctx.textAlign = 'center';
       if (L.id === 1) { ctx.fillText('O Zipo achou as 3 peças da praia:', W / 2, H / 2 - 80); ctx.fillText('Propulsor, Painel Solar e Motor', W / 2, H / 2 - 50); }
       else if (L.id === 2) { ctx.fillText('Antena, Escudo e Asa da Nave! Já são 6 peças.', W / 2, H / 2 - 80); ctx.fillText('E o Dentinho vai morar com o Zipo no planeta dele!', W / 2, H / 2 - 50); }
+      else if (L.id === 4) { ctx.fillText('Turbina, Painel de Controle e Núcleo de Fogo! Já são 12 peças.', W / 2, H / 2 - 80); ctx.fillText('O Dentinho derrotou ' + (L.dente.kills || 0) + ' criaturas com mordidas!', W / 2, H / 2 - 50); }
       else { ctx.fillText('Canhão, Bússola Estelar e Cristal de Energia!', W / 2, H / 2 - 80); ctx.fillText(L.boss.defeated ? 'Você acertou 20 tiros no Yeti! Já são 9 peças.' : 'Você escapou pelos ganchos! Já são 9 peças.', W / 2, H / 2 - 50); }
       drawZipo(W / 2 - 20 - (L.id >= 2 ? 30 : 0), H / 2 - 10 + Math.abs(Math.sin(time * 5)) * -24, 1, 'happy', time * 3, 1.2);
       if (L.id >= 2) drawDenteAt(W / 2 + 50, H / 2 + 70 + Math.abs(Math.sin(time * 5 + 1)) * -24, -1, true, 1.3);
       ctx.fillStyle = '#7CE38B'; ctx.font = '800 22px system-ui,sans-serif';
-      ctx.fillText(L.id === 1 ? 'Próxima área: Floresta dos Dinossauros!' : L.id === 2 ? 'Próxima área: Montanhas Geladas!' : 'Próxima área: ' + L.next + ' (em breve!)', W / 2, H / 2 + 120);
-      if (stateT > 1.2 && Math.floor(time * 2) % 2 === 0) { ctx.fillStyle = '#fff'; ctx.font = '700 19px system-ui,sans-serif'; ctx.fillText(L.id === 1 ? 'Toque para entrar na floresta' : L.id === 2 ? 'Toque para subir as montanhas' : 'Toque para voltar ao início', W / 2, H - 34); }
+      ctx.fillText(L.id === 1 ? 'Próxima área: Floresta dos Dinossauros!' : L.id === 2 ? 'Próxima área: Montanhas Geladas!' : L.id === 3 ? 'Próxima área: O Vulcão!' : 'Próxima área: ' + L.next + ' (em breve!)', W / 2, H / 2 + 120);
+      if (stateT > 1.2 && Math.floor(time * 2) % 2 === 0) { ctx.fillStyle = '#fff'; ctx.font = '700 19px system-ui,sans-serif'; ctx.fillText(L.id === 1 ? 'Toque para entrar na floresta' : L.id === 2 ? 'Toque para subir as montanhas' : L.id === 3 ? 'Toque para ir ao vulcão' : 'Toque para voltar ao início', W / 2, H - 34); }
       if (Math.random() < 0.3) sparkle(Math.random() * W, Math.random() * H * 0.5, 3);
       drawParts();
     }
@@ -1623,7 +1815,7 @@ function loop(now) {
 }
 loadLevel(1);
 requestAnimationFrame(loop);
-window.__game = { pressShoot, get boss() { return boss; }, get bossOn() { return bossOn; }, pressPunch, P, get L() { return L; }, get state() { return state; }, get rope() { return rope; }, get trex() { return trex; }, get chaseOn() { return chaseOn; }, pressArm, pressJump, keys, startArea, beginPlay };
+window.__game = { get rocks() { return rocks; }, pressShoot, get boss() { return boss; }, get bossOn() { return bossOn; }, pressPunch, P, get L() { return L; }, get state() { return state; }, get rope() { return rope; }, get trex() { return trex; }, get chaseOn() { return chaseOn; }, pressArm, pressJump, keys, startArea, beginPlay };
 </script>
 </body>
 </html>
