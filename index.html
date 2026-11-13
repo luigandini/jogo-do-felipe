@@ -67,6 +67,9 @@ const SFX = {
   stomp: () => beep(90, .25, 'triangle', 50, .12),
   roar: () => { beep(110, .9, 'sawtooth', 60, .12); beep(160, .9, 'square', 70, .05); },
   rawr: () => beep(700, .25, 'square', 1100, .06),
+  punch: () => beep(260, .08, 'square', 120, .1),
+  pow: () => { beep(140, .12, 'square', 60, .12); beep(900, .15, 'triangle', 300, .06); },
+  toc: () => beep(180, .1, 'triangle', 140, .1),
   chomp: () => { beep(300, .06, 'square'); setTimeout(() => beep(300, .06, 'square'), 120); }
 };
 
@@ -183,6 +186,7 @@ addEventListener('keydown', e => {
   }
   if (['Space', 'ArrowUp', 'KeyW'].includes(e.code)) pressJump();
   if (['KeyX', 'KeyJ', 'KeyK', 'ShiftLeft', 'ShiftRight'].includes(e.code)) pressArm();
+  if (['KeyZ', 'KeyC', 'KeyL'].includes(e.code)) pressPunch();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 const pointers = new Map();
@@ -191,7 +195,8 @@ function btnDefs() {
     left: { x: 85, y: H - 85, r: 52 },
     right: { x: 205, y: H - 85, r: 52 },
     arm: { x: W - 225, y: H - 72, r: 54 },
-    jump: { x: W - 92, y: H - 110, r: 60 }
+    jump: { x: W - 92, y: H - 110, r: 60 },
+    punch: { x: W - 205, y: H - 192, r: 46 }
   };
 }
 function toV(e) { return { x: (e.clientX - offX) / scale, y: (e.clientY - offY) / scale }; }
@@ -209,6 +214,7 @@ cv.addEventListener('pointerdown', e => {
   const b = hitBtn(p); pointers.set(e.pointerId, b);
   if (b === 'jump') pressJump();
   if (b === 'arm') pressArm();
+  if (b === 'punch') pressPunch();
 });
 cv.addEventListener('pointermove', e => {
   if (!pointers.has(e.pointerId)) return;
@@ -230,6 +236,48 @@ function pressJump() {
   if (rope) { releaseRope(); P.vy = Math.min(P.vy, -480); SFX.jump(); return; }
   if (P.hurt > 0) return;
   if (P.onGround || P.coyote > 0) { P.vy = -660; P.onGround = false; P.coyote = 0; SFX.jump(); puff(P.x + P.w / 2, P.y + P.h, 6, dustCol()); }
+}
+let punch = { t: -1, cd: 0, dir: 1 };
+function pressPunch() {
+  if (P.climb || caught > 0 || punch.cd > 0 || state !== 'play') return;
+  punch = { t: 0, cd: 0.38, dir: P.face, hits: [] }; SFX.punch();
+}
+function fistPos() {
+  const t = punch.t, ext = t < 0.11 ? t / 0.11 : Math.max(0, (0.26 - t) / 0.15);
+  const ox = P.x + P.w / 2 + punch.dir * 10, oy = P.y + 34;
+  return { ox, oy, x: ox + punch.dir * (18 + 105 * ext), y: oy };
+}
+function popText(x, y, text, col) { parts.push({ x, y, vx: 0, vy: -90, life: .8, max: .8, col: col || '#FFD84D', r: 0, text }); }
+function defeat(o, x, y) {
+  o.bye = { t: 0, vx: punch.dir * 280, vy: -460, y: 0 }; SFX.pow(); shake = Math.max(shake, 6);
+  sparkle(x, y, 16); popText(x, y - 30, ['POW!', 'BAM!', 'TUM!'][Math.floor(Math.random() * 3)]);
+  P.expr = 'happy'; P.exprT = 1;
+}
+function updatePunch(dt) {
+  if (punch.cd > 0) punch.cd -= dt;
+  if (punch.t < 0) return;
+  punch.t += dt;
+  if (punch.t > 0.26) { punch.t = -1; return; }
+  if (punch.t > 0.2) return;
+  const f = fistPos();
+  for (const c of L.crabs) if (!c.bye && !punch.hits.includes(c) && Math.hypot(f.x - c.x, f.y - (GROUND - 16)) < 40) { punch.hits.push(c); defeat(c, c.x, GROUND - 20); }
+  for (const p of L.pteros) if (!p.bye && !punch.hits.includes(p) && Math.hypot(f.x - p.x, f.y - p.y) < 44) { punch.hits.push(p); defeat(p, p.x, p.y); }
+  for (const t of L.trikes) {
+    if (t.bye || punch.hits.includes(t)) continue;
+    const b = trikeBox(t);
+    if (f.x > b.x - 14 && f.x < b.x + b.w + 14 && f.y > b.y - 30 && f.y < b.y + b.h + 10) {
+      punch.hits.push(t); t.hp = (t.hp == null ? 3 : t.hp) - 1; t.flash = 0.25;
+      if (t.hp <= 0) defeat(t, t.x, GROUND - 50);
+      else { SFX.pow(); sparkle(f.x, f.y, 8); popText(f.x, f.y - 30, t.hp === 2 ? 'TUM! (mais 2)' : 'BAM! (mais 1)'); if (t.st === 'charge' || t.st === 'warn') { t.st = 'dizzy'; t.t = 0; } t.x += punch.dir * 24; }
+    }
+  }
+  if (trex && !punch.hits.includes(trex)) {
+    if (f.x > trex.x + 120 && f.x < trex.x + 230 && f.y > GROUND - 240 + trex.y) { punch.hits.push(trex); SFX.toc(); popText(f.x, f.y - 30, 'TOC!'); say('Ele é grande demais! Melhor fugir!', 1.8, 'dente'); }
+  }
+}
+function updateBye(list, dt, grounded) {
+  for (const o of list) if (o.bye) { o.bye.t += dt; o.x += o.bye.vx * dt; o.bye.vy += 1200 * dt; if (grounded) o.bye.y += o.bye.vy * dt; else o.y += o.bye.vy * dt; }
+  return list.filter(o => !(o.bye && o.bye.t > 1.6));
 }
 function anchorOk(a) { return !a.broken; }
 function pressArm() {
@@ -295,7 +343,7 @@ let state = 'title', stateT = 0, paused = false, camX = 0, time = 0, collected =
 let trex = null, chaseOn = false, caught = 0;
 function startArea(n) {
   loadLevel(n);
-  P.vx = 0; P.vy = 0; P.face = 1; rope = null; arm = { st: 'idle' }; P.climb = null; P.inv = 0; P.hurt = 0;
+  P.vx = 0; P.vy = 0; P.face = 1; rope = null; arm = { st: 'idle' }; P.climb = null; P.inv = 0; P.hurt = 0; punch = { t: -1, cd: 0, dir: 1 };
   camX = 0; parts = []; talkQ = []; bubble = null; toast = null;
   try { const el = document.documentElement; if (el.requestFullscreen && !document.fullscreenElement) el.requestFullscreen().then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch (e) {} }).catch(() => {}); } catch (e) {}
   if (n === 1) { P.x = 200; P.y = -200; P.lastCP = 120; state = 'intro'; stateT = 0; wreckShown = false; }
@@ -362,7 +410,7 @@ function knock(fromX, power) {
 
 function update(dt) {
   time += dt; stateT += dt;
-  for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.star ? 200 : 500) * dt; p.life -= dt; }
+  for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.text ? 0 : p.star ? 200 : 500) * dt; p.life -= dt; }
   parts = parts.filter(p => p.life > 0);
   if (shake > 0) shake = Math.max(0, shake - dt * 20);
   if (!bubble && talkQ.length) bubble = talkQ.shift();
@@ -376,7 +424,8 @@ function update(dt) {
     if (a.move) a.x = a.bx + Math.sin(time * a.move.sp) * a.move.amp;
     if (a.broken > 0) { a.broken -= dt; if (a.broken <= 0) a.broken = 0; }
   }
-  updateCrabs(dt); updateTrikes(dt); updatePteros(dt); updateDente(dt);
+  updateCrabs(dt); updateTrikes(dt); updatePteros(dt); updateDente(dt); updatePunch(dt);
+  L.crabs = updateBye(L.crabs, dt, true); L.trikes = updateBye(L.trikes, dt, true); L.pteros = updateBye(L.pteros, dt, false);
   P.exprT -= dt; if (P.exprT <= 0) P.expr = 'ok';
   if (P.hurt > 0) P.hurt -= dt;
   if (P.inv > 0) P.inv -= dt;
@@ -508,6 +557,7 @@ function collect(p) {
 // ---------- inimigos ----------
 function updateCrabs(dt) {
   for (const c of L.crabs) {
+    if (c.bye) continue;
     if (c.stun > 0) { c.stun -= dt; continue; }
     c.x += c.dir * 70 * dt;
     if (c.x < c.min) { c.x = c.min; c.dir = 1; } if (c.x > c.max) { c.x = c.max; c.dir = -1; }
@@ -521,6 +571,8 @@ function updateCrabs(dt) {
 function trikeBox(t) { return { x: t.x - 55, y: GROUND - 62, w: 110, h: 62 }; }
 function updateTrikes(dt) {
   for (const t of L.trikes) {
+    if (t.bye) continue;
+    if (t.flash > 0) t.flash -= dt;
     t.t += dt;
     const feet = P.y + P.h, cx = P.x + P.w / 2;
     if (t.st === 'walk') {
@@ -550,6 +602,7 @@ function updateTrikes(dt) {
 }
 function updatePteros(dt) {
   for (const p of L.pteros) {
+    if (p.bye) continue;
     p.t += dt;
     const cx = P.x + P.w / 2, cy = P.y + P.h / 2;
     if (p.st === 'fly') {
@@ -988,6 +1041,14 @@ function drawPlayer() {
   const flick = P.inv > 0 && Math.floor(time * 20) % 2 === 0;
   if (!flick) { drawDenteRiding(); drawZipo(P.x, P.y, P.face, P.expr, P.wheel); }
   spring(s.x, s.y, h.x, h.y);
+  if (punch.t >= 0) {
+    const f = fistPos();
+    ctx.strokeStyle = '#8f9ba3'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(f.ox, f.oy);
+    const n = 6; for (let i = 1; i < n; i++) ctx.lineTo(f.ox + (f.x - f.ox) * i / n, f.oy + (i % 2 ? -5 : 5)); ctx.lineTo(f.x, f.y); ctx.stroke();
+    ctx.fillStyle = '#e53935'; ctx.beginPath(); ctx.arc(f.x, f.y, 14, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ff7961'; ctx.beginPath(); ctx.arc(f.x + punch.dir * 3, f.y - 4, 5, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillRect(f.x - punch.dir * 14 - 3, f.y - 8, 6, 16);
+  }
 }
 function speakerPos(who) {
   if (who === 'dente' && L && L.dente) return { x: L.dente.x - camX, y: (L.dente.st === 'ride' ? L.dente.y - 50 : GROUND - 70) };
@@ -1016,13 +1077,18 @@ function wrap(t, maxW) {
 function drawButtons() {
   const b = btnDefs();
   for (const k in b) {
-    const o = b[k], on = held(k) || (k === 'arm' && (arm.st !== 'idle' || rope));
+    const o = b[k];
+    const on = held(k) || (k === 'arm' && (arm.st !== 'idle' || rope)) || (k === 'punch' && punch.t >= 0);
     ctx.fillStyle = on ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.28)';
     ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, 7); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#123B1C'; ctx.strokeStyle = '#123B1C';
     if (k === 'left' || k === 'right') {
       const d = k === 'left' ? -1 : 1; ctx.beginPath(); ctx.moveTo(o.x + d * 18, o.y); ctx.lineTo(o.x - d * 12, o.y - 18); ctx.lineTo(o.x - d * 12, o.y + 18); ctx.fill();
+    } else if (k === 'punch') {
+      ctx.fillStyle = '#e53935'; ctx.beginPath(); ctx.arc(o.x, o.y - 8, 15, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.fillRect(o.x - 18, o.y - 15, 5, 14);
+      ctx.fillStyle = '#123B1C'; ctx.font = '800 14px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('SOCO', o.x, o.y + 22);
     } else if (k === 'jump') {
       ctx.beginPath(); ctx.moveTo(o.x, o.y - 26); ctx.lineTo(o.x - 18, o.y - 4); ctx.lineTo(o.x + 18, o.y - 4); ctx.fill();
       ctx.font = '800 15px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('PULAR', o.x, o.y + 18);
@@ -1073,14 +1139,16 @@ function currentHint() {
   if (rope && rope.a.t === 'hook') return rope.a.breaks ? 'Rápido! Esse cipó vai arrebentar!' : 'Balance e toque em SOLTAR (ou no BRAÇO para o próximo)';
   if (rope && rope.a.t === 'ledge') return 'Subindo...';
   if (L.id === 1) {
-    if (x < 640 && stateT > 3.6 && stateT < 9) return 'Use as setas para andar e PULAR para pular';
+    if (x < 640 && stateT > 3.6 && stateT < 8) return 'Use as setas para andar e PULAR para pular';
+    if (x > 900 && x < 1300 && L.crabs.some(c => !c.bye && c.x < 1300)) return 'Novo! Toque em SOCO para derrotar o caranguejo!';
     if (x > 560 && x < 720) return 'Toque no BRAÇO para agarrar o gancho!';
     if (x > 1150 && x < 1300 && !L.pieces[0].got && P.y > 350) return 'Use o BRAÇO para agarrar a beirada!';
     if (x > 2080 && x < 2200) return 'Agarre um gancho, balance e pegue o próximo!';
     if (x > 2700 && x < 2850 && !L.pieces[2].got) return 'A peça está na água! Use o BRAÇO para puxar!';
   } else {
+    if (x < 560 && stateT > 6.2 && stateT < 13) return 'Toque em SOCO para bater nos dinossauros!';
     if (x > 560 && x < 720) return 'Três cipós seguidos! Toque no BRAÇO no meio do balanço';
-    if (x > 1330 && x < 1760 && P.y > 350 && !L.pieces[0].got) return 'Cuidado com o tricerátops! Pule nas costas dele!';
+    if (x > 1330 && x < 1760 && P.y > 350 && !L.pieces[0].got) return 'Tricerátops! Dê 3 SOCOS ou pule nas costas dele!';
     if (x > 1850 && x < 2010 && P.y < 300) return 'Cipós que se mexem e um que arrebenta. Atenção!';
     if (L.dente.st === 'trapped' && x > 2850 && x < 3250) return 'Puxe o nó dos espinhos com o BRAÇO!';
   }
@@ -1100,13 +1168,21 @@ function drawWorld() {
   drawAnchors();
   drawDente();
   for (const p of L.pieces) if (!p.got && !p.hidden && !(p.water && !p.pulled)) drawPiece(p);
-  for (const c of L.crabs) if (c.x > camX - 60 && c.x < camX + W + 60) drawCrab(c);
-  for (const t of L.trikes) if (t.x > camX - 120 && t.x < camX + W + 120) drawTrike(t);
+  for (const c of L.crabs) if (c.x > camX - 60 && c.x < camX + W + 60) byeWrap(c, c.x, GROUND - 16, () => drawCrab(c));
+  for (const t of L.trikes) if (t.x > camX - 120 && t.x < camX + W + 120) byeWrap(t, t.x, GROUND - 40, () => { if (t.flash > 0 && Math.floor(time * 30) % 2) ctx.globalAlpha *= 0.4; drawTrike(t); });
+}
+function byeWrap(o, cx, cy, fn) {
+  if (!o.bye) { ctx.save(); fn(); ctx.restore(); return; }
+  ctx.save(); ctx.globalAlpha = Math.max(0, 1 - o.bye.t / 1.6);
+  ctx.translate(cx, cy + (o.bye.y || 0)); ctx.rotate(o.bye.t * 9 * Math.sign(o.bye.vx || 1)); ctx.translate(-cx, -cy);
+  fn(); ctx.restore();
+  dizzyStars(cx, cy + (o.bye.y || 0) - 30, 18);
 }
 function drawParts() {
   for (const p of parts) {
     ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.col;
-    if (p.star) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(time * 4); ctx.fillRect(-p.r, -p.r / 3, p.r * 2, p.r / 1.5); ctx.fillRect(-p.r / 3, -p.r, p.r / 1.5, p.r * 2); ctx.restore(); }
+    if (p.text) { ctx.font = '900 26px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 5; ctx.strokeStyle = '#5a1d00'; ctx.strokeText(p.text, p.x, p.y); ctx.fillText(p.text, p.x, p.y); }
+    else if (p.star) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(time * 4); ctx.fillRect(-p.r, -p.r / 3, p.r * 2, p.r / 1.5); ctx.fillRect(-p.r / 3, -p.r, p.r / 1.5, p.r * 2); ctx.restore(); }
     else { ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill(); }
   }
   ctx.globalAlpha = 1;
@@ -1138,7 +1214,7 @@ function render() {
         ctx.fillStyle = '#fff'; ctx.font = '800 24px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(b.label, b.x, b.y);
       }
     } else if (Math.floor(time * 2) % 2 === 0) title('Toque para começar', H - 62, 28, '#fff', '#123B1C');
-    ctx.font = '700 14px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.textAlign = 'center'; ctx.fillText('Versão de teste 2  •  Um jogo criado pelo Felipe', W / 2, H - 22);
+    ctx.font = '700 14px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.textAlign = 'center'; ctx.fillText('Versão de teste 3  •  Um jogo criado pelo Felipe', W / 2, H - 22);
   } else if (state === 'intro') {
     drawWorld();
     if (stateT > 2.2) drawZipo(P.x, P.y, 1, P.expr, 0);
@@ -1158,7 +1234,7 @@ function render() {
     drawWorld();
     drawTrex();
     drawPlayer();
-    for (const p of L.pteros) drawPtero(p);
+    for (const p of L.pteros) byeWrap(p, p.x, p.y, () => drawPtero(p));
     if (state !== 'win') drawParts();
     ctx.restore();
     drawBubble();
@@ -1189,7 +1265,7 @@ function loop(now) {
 }
 loadLevel(1);
 requestAnimationFrame(loop);
-window.__game = { P, get L() { return L; }, get state() { return state; }, get rope() { return rope; }, get trex() { return trex; }, get chaseOn() { return chaseOn; }, pressArm, pressJump, keys, startArea, beginPlay };
+window.__game = { pressPunch, P, get L() { return L; }, get state() { return state; }, get rope() { return rope; }, get trex() { return trex; }, get chaseOn() { return chaseOn; }, pressArm, pressJump, keys, startArea, beginPlay };
 </script>
 </body>
 </html>
