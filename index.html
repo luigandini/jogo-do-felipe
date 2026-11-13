@@ -526,6 +526,7 @@ function startArea(n) {
   if (n === 1) { P.x = 200; P.y = -200; P.lastCP = 120; state = 'intro'; stateT = 0; wreckShown = false; }
   else {
     P.x = 120; P.y = GROUND - P.h; P.lastCP = 120; state = 'play'; stateT = 0; wreckShown = false;
+    if (L.dente && L.dente.st === 'ride') resetTrail();
     if (n === 2) talk([['zipo', 'Que floresta escura... e cheia de dinossauros!', 2.8], ['zipo', 'Ouvi um chorinho lá na frente. Será que alguém precisa de ajuda?', 3.2]]);
     else talk([['zipo', 'Brrr! As Montanhas Geladas!', 2.4], ['dente', 'Meus dentinhos estão batendo de frio!', 2.6], ['zipo', 'Olha, uma peça brilhando ali na frente!', 2.6]]);
   }
@@ -819,11 +820,22 @@ function updateDente(dt) {
     const pc = L.pieces.find(p => p.type === 'shield');
     if (pc && pc.got && d.t > 2) { d.st = 'jump'; d.t = 0; d.fx = d.x; d.fy = GROUND; }
   } else if (d.st === 'jump') {
-    d.t += dt; const k = Math.min(1, d.t / 0.6), tx = P.x + P.w / 2 - P.face * 12, ty = P.y + 30;
+    d.t += dt; const k = Math.min(1, d.t / 0.6), tx = P.x + P.w / 2 - P.face * 60, ty = P.y + P.h;
     d.x = d.fx + (tx - d.fx) * k; d.y = d.fy + (ty - d.fy) * k - Math.sin(k * Math.PI) * 80;
-    if (k >= 1) { d.st = 'ride'; SFX.rawr(); }
+    if (k >= 1) { d.st = 'ride'; SFX.rawr(); resetTrail(); }
   } else if (d.st === 'ride') {
-    d.x = P.x + P.w / 2 - P.face * 12; d.y = P.y + 28;
+    const fx = P.x + P.w / 2, fy = P.y + P.h, last = trail[trail.length - 1];
+    if (!last || Math.hypot(fx - last.x, fy - last.y) > 160) resetTrail();
+    else if (Math.hypot(fx - last.x, fy - last.y) > 2) { trail.push({ x: fx, y: fy }); if (trail.length > 300) trail.shift(); }
+    let need = 62, tx = trail[0].x, ty = trail[0].y;
+    for (let i = trail.length - 1; i > 0; i--) {
+      const a = trail[i], b = trail[i - 1], seg = Math.hypot(a.x - b.x, a.y - b.y);
+      if (seg >= need) { const k = need / seg; tx = a.x + (b.x - a.x) * k; ty = a.y + (b.y - a.y) * k; need = -1; break; }
+      need -= seg;
+    }
+    if (need > 0 && trail.length) { tx = fx - P.face * 62; ty = fy; }
+    const ox = d.x; d.x += (tx - d.x) * Math.min(1, dt * 14); d.y += (ty - d.y) * Math.min(1, dt * 14);
+    const mv = d.x - ox; if (Math.abs(mv) > 0.3) d.face = Math.sign(mv); d.moving = Math.abs(mv) > 0.6;
     for (const s of L.solids) if (s.thorn && !s.gone && Math.abs(P.x + P.w / 2 - (s.x + s.w / 2)) < 110) {
       s.gone = true; SFX.chomp(); puff(s.x + s.w / 2, s.y + 60, 24, '#4a6b2a', 220); say('Nhac nhac nhac! Espinho não me assusta!', 2.4, 'dente');
     }
@@ -1178,7 +1190,13 @@ function drawDente() {
     }
   } else if (d.st === 'jump') drawDenteAt(d.x, d.y, P.face, true, 1);
 }
-function drawDenteRiding() { const d = L.dente; if (d && d.st === 'ride') drawDenteAt(d.x, d.y + Math.sin(time * 10) * 1.5, P.face, true, 0.9); }
+let trail = [];
+function resetTrail() {
+  const d = L && L.dente; const fx = P.x + P.w / 2, fy = P.y + P.h;
+  trail = [{ x: fx - P.face * 62, y: fy }, { x: fx, y: fy }];
+  if (d) { d.x = fx - P.face * 62; d.y = fy; d.face = P.face; }
+}
+function drawDenteRiding() { const d = L.dente; if (d && d.st === 'ride') drawDenteAt(d.x, d.y - (d.moving ? Math.abs(Math.sin(time * 14)) * 5 : 0), d.face || P.face, true, 1); }
 function drawTrex() {
   if (!trex) return;
   const x = trex.x, y = GROUND + trex.y, run = trex.st === 'run' || trex.st === 'leave', st = Math.sin(trex.step * 10) * (run ? 10 : 0);
@@ -1361,7 +1379,8 @@ function drawZipo(px, py, face, expr, wheel, big) {
 function drawPlayer() {
   const s = shoulder(), h = handPos();
   const flick = P.inv > 0 && Math.floor(time * 20) % 2 === 0;
-  if (!flick) { drawDenteRiding(); drawZipo(P.x, P.y, P.face, P.expr, P.wheel); }
+  drawDenteRiding();
+  if (!flick) drawZipo(P.x, P.y, P.face, P.expr, P.wheel);
   spring(s.x, s.y, h.x, h.y);
   if (punch.t >= 0) {
     const f = fistPos();
@@ -1373,7 +1392,7 @@ function drawPlayer() {
   }
 }
 function speakerPos(who) {
-  if (who === 'dente' && L && L.dente) return { x: L.dente.x - camX, y: (L.dente.st === 'ride' ? L.dente.y - 50 : GROUND - 70) };
+  if (who === 'dente' && L && L.dente) return { x: L.dente.x - camX, y: (L.dente.st === 'ride' ? L.dente.y - 62 : GROUND - 70) };
   if (who === 'trex' && trex) return { x: Math.max(80, trex.x + 180 - camX), y: GROUND - 230 + trex.y };
   return { x: P.x + P.w / 2 - camX, y: P.y - 30 };
 }
