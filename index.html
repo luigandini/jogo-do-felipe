@@ -36,7 +36,7 @@ function resize() {
 addEventListener('resize', resize); resize();
 
 // ---------- progresso salvo ----------
-let save = { area: 4, done: [] };
+let save = { area: 5, done: [] };
 try { const s = JSON.parse(localStorage.getItem('zipo_save') || '{}'); if (s.area) save.area = Math.max(save.area, s.area); if (Array.isArray(s.done)) save.done = s.done; } catch (e) {}
 function storeSave() { try { localStorage.setItem('zipo_save', JSON.stringify(save)); } catch (e) {} }
 function unlock(a) { if (a > save.area) save.area = a; if (L && !save.done.includes(L.id)) save.done.push(L.id); storeSave(); }
@@ -242,7 +242,49 @@ function makeVulcao() {
     wreck: false
   };
 }
-const MAKERS = { 1: makePraia, 2: makeFloresta, 3: makeMontanhas, 4: makeVulcao };
+function makeCaverna() {
+  const bat = (x, min, max, y0) => ({ x, y0, y: y0, min, max, dir: 1, st: 'fly', t: Math.random(), kind: 'bat' });
+  const sp = (x) => ({ x, y: 60, top: 60, low: GROUND - 52, st: 'up', t: 0, cd: 0 });
+  return {
+    id: 5, name: 'Área 5: Caverna de Enxofre', theme: 'cave', W: 4800, next: 'Mais aventuras',
+    solids: [
+      { x: -300, y: 460, w: 1000, h: 200, k: 'cavefloor' },
+      { x: 800, y: 400, w: 90, h: 24, k: 'crystal', crumble: true },
+      { x: 965, y: 360, w: 90, h: 24, k: 'crystal', crumble: true },
+      { x: 1135, y: 400, w: 90, h: 24, k: 'crystal', crumble: true },
+      { x: 1300, y: 460, w: 800, h: 200, k: 'cavefloor' },
+      { x: 1900, y: 310, w: 200, h: 150, k: 'caverock' },
+      { x: 2700, y: 460, w: 800, h: 200, k: 'cavefloor' },
+      { x: 3610, y: 410, w: 80, h: 24, k: 'crystal', crumble: true },
+      { x: 3960, y: 390, w: 80, h: 24, k: 'crystal', crumble: true },
+      { x: 4100, y: 460, w: 700, h: 200, k: 'cavefloor' },
+      { x: 4740, y: 120, w: 200, h: 340, k: 'caverock' }
+    ],
+    anchors: [
+      { x: 1902, y: 314, t: 'ledge', dir: 1 },
+      { x: 2230, y: 210, t: 'hook' },
+      { x: 2400, y: 200, t: 'hook', breaks: true },
+      { x: 2570, y: 210, t: 'hook' },
+      { x: 3790, y: 200, t: 'hook', move: { amp: 45, sp: 1.5 } }
+    ],
+    checkpoints: [120, 1320, 2720, 4120],
+    deco: [150, 560, 1450, 1720, 2850, 3300, 4300, 4650],
+    pools: [], lava: [{ x: 3500, w: 600 }],
+    pieces: [
+      { id: 13, name: 'Radar', type: 'radar', x: 2000, y: 274 },
+      { id: 14, name: 'Escotilha', type: 'hatch', x: 3420, y: 420 },
+      { id: 15, name: 'Bateria de Enxofre', type: 'battery', x: 4620, y: 420 }
+    ],
+    crabs: [], trikes: [], knots: [],
+    pteros: [bat(1700, 1550, 2050, 150), bat(1850, 1550, 2050, 190), bat(2900, 2760, 3450, 150), bat(3200, 2760, 3450, 175), bat(4400, 4200, 4650, 160)],
+    spiders: [sp(1500), sp(1780), sp(3000), sp(3280), sp(4260), sp(4420), sp(4540)],
+    vents: [{ x: 2320, base: SEA_Y, period: 3.4, phase: 0 }, { x: 2490, base: SEA_Y, period: 3.4, phase: 1.7 }, { x: 2930, base: GROUND, period: 3.6, phase: 0.5 }, { x: 3180, base: GROUND, period: 3.6, phase: 2.2 }],
+    geysers: [{ x: 3870, period: 3.0, phase: 0.4 }],
+    dente: { x: 0, y: 0, st: 'ride' },
+    wreck: false
+  };
+}
+const MAKERS = { 1: makePraia, 2: makeFloresta, 3: makeMontanhas, 4: makeVulcao, 5: makeCaverna };
 
 let L = null;
 function loadLevel(n) {
@@ -254,6 +296,8 @@ function loadLevel(n) {
   boss = null; bossOn = false; shots = []; balls = []; waves = []; shootCd = 0; P.hasCannon = false; P.hearts = 5;
   if (!L.icicles) L.icicles = [];
   if (!L.geysers) L.geysers = [];
+  if (!L.spiders) L.spiders = []; if (!L.vents) L.vents = []; if (!L.lava) L.lava = [];
+  for (const so of L.solids) { so.cr = null; if (so.crumble) so.gone = false; }
   rocks = []; rockT = 2;
   if (n >= 4) P.hasCannon = true;
   for (const ic of L.icicles) { ic.st = 'hang'; ic.y = 40; ic.t = 0; ic.vy = 0; }
@@ -359,6 +403,7 @@ function updatePunch(dt) {
   const f = fistPos();
   for (const c of L.crabs) if (!c.bye && !punch.hits.includes(c) && Math.hypot(f.x - c.x, f.y - (GROUND - 16)) < 40) { punch.hits.push(c); defeat(c, c.x, GROUND - 20); }
   for (const p of L.pteros) if (!p.bye && !punch.hits.includes(p) && Math.hypot(f.x - p.x, f.y - p.y) < 44) { punch.hits.push(p); defeat(p, p.x, p.y); }
+  for (const p of L.spiders) if (!p.bye && !punch.hits.includes(p) && Math.hypot(f.x - p.x, f.y - p.y) < 40) { punch.hits.push(p); defeat(p, p.x, p.y); }
   for (const t of L.trikes) {
     if (t.bye || punch.hits.includes(t)) continue;
     const b = trikeBox(t);
@@ -467,6 +512,7 @@ function updateShots(dt) {
     for (const so of L.solids) if (!so.gone && sh.x > so.x && sh.x < so.x + so.w && sh.y > so.y && sh.y < so.y + so.h) sh.life = 0;
     for (const c of L.crabs) if (!c.bye && sh.life > 0 && Math.abs(sh.x - c.x) < 26 && Math.abs(sh.y - (GROUND - 18)) < 34) { sh.life = 0; defeat(c, c.x, GROUND - 20, Math.sign(sh.vx)); }
     for (const q of L.pteros) if (!q.bye && sh.life > 0 && Math.hypot(sh.x - q.x, sh.y - q.y) < 36) { sh.life = 0; defeat(q, q.x, q.y, Math.sign(sh.vx)); }
+    for (const q of L.spiders) if (!q.bye && sh.life > 0 && Math.hypot(sh.x - q.x, sh.y - q.y) < 32) { sh.life = 0; defeat(q, q.x, q.y, Math.sign(sh.vx)); }
     for (const t of L.trikes) if (!t.bye && sh.life > 0 && overlap({ x: sh.x - 4, y: sh.y - 4, w: 8, h: 8 }, trikeBox(t))) { sh.life = 0; t.hp = (t.hp == null ? 3 : t.hp) - 1; t.flash = .2; if (t.hp <= 0) defeat(t, t.x, GROUND - 50, Math.sign(sh.vx)); else SFX.toc(); }
     if (boss && sh.life > 0 && boss.st !== 'down' && boss.st !== 'enter' && overlap({ x: sh.x - 4, y: sh.y - 4, w: 8, h: 8 }, bossBox())) { sh.life = 0; bossHit(); sparkle(sh.x, sh.y, 6); }
     for (const bl of balls) if (sh.life > 0 && Math.hypot(sh.x - bl.x, sh.y - bl.y) < 22) { sh.life = 0; bl.dead = true; puff(bl.x, bl.y, 10, '#ffffff', 160); popText(bl.x, bl.y - 20, 'PUF!', '#b3e5fc'); }
@@ -574,6 +620,7 @@ function startArea(n) {
     P.x = 120; P.y = GROUND - P.h; P.lastCP = 120; state = 'play'; stateT = 0; wreckShown = false;
     if (L.dente && L.dente.st === 'ride') resetTrail();
     if (n === 2) talk([['zipo', 'Que floresta escura... e cheia de dinossauros!', 2.8], ['zipo', 'Ouvi um chorinho lá na frente. Será que alguém precisa de ajuda?', 3.2]]);
+    else if (n === 5) talk([['zipo', 'Que cheiro de ovo podre!', 2.4], ['dente', 'Eca! É enxofre! Mas olha os cristais brilhando!', 2.8], ['zipo', 'Cuidado com o gás amarelo e com o ácido!', 2.6]]);
     else if (n === 4) talk([['zipo', 'Que calor! É um vulcão de verdade!', 2.6], ['dente', 'Escorpiões? Pode deixar comigo! NHAC!', 2.8], ['zipo', 'Cuidado com a lava, Dentinho!', 2.2]]);
     else talk([['zipo', 'Brrr! As Montanhas Geladas!', 2.4], ['dente', 'Meus dentinhos estão batendo de frio!', 2.6], ['zipo', 'Olha, uma peça brilhando ali na frente!', 2.6]]);
   }
@@ -585,7 +632,7 @@ function tapAdvance(p) {
   else if (state === 'win') {
     if (stateT > 1.2) {
       const nxt = Math.min(L.id + 1, MAP_NODES.length);
-      openMap(L.id, nxt <= save.area && nxt <= 4 ? nxt : L.id);
+      openMap(L.id, nxt <= save.area && nxt <= 5 ? nxt : L.id);
     }
   }
 }
@@ -595,7 +642,8 @@ const MAP_NODES = [
   { n: 2, name: 'Floresta', fx: 0.34, y: 300, col: '#2e7d3a' },
   { n: 3, name: 'Montanhas', fx: 0.56, y: 185, col: '#546eb4' },
   { n: 4, name: 'Vulcão', fx: 0.78, y: 290, col: '#c8461e' },
-  { n: 5, name: 'Em breve', fx: 0.9, y: 430, col: '#6d6d6d', soon: true }
+  { n: 5, name: 'Caverna', fx: 0.9, y: 430, col: '#b8a000' },
+  { n: 6, name: 'Em breve', fx: 0.93, y: 190, col: '#6d6d6d', soon: true }
 ];
 const map = { sel: 1, pos: 1, msg: null, msgT: 0 };
 function nodeXY(i) { const nd = MAP_NODES[i - 1]; return { x: nd.fx * W, y: nd.y }; }
@@ -681,9 +729,9 @@ function drawMap() {
   ctx.save(); ctx.translate(zp.x, zp.y - 10 - hop); ctx.scale(0.75, 0.75); drawZipo(-20, -66, face, walking ? 'happy' : 'ok', time * 4); ctx.restore();
   ctx.fillStyle = 'rgba(18,59,28,.85)'; rr(14, 14, 250, 46, 23); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.font = '900 22px system-ui,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('Ilha do Zipo', 30, 37);
-  const pcs = save.done.filter(n => n <= 4).length * 3;
+  const pcs = save.done.filter(n => n <= 5).length * 3;
   ctx.fillStyle = 'rgba(18,59,28,.85)'; rr(W - 250, 14, 236, 46, 23); ctx.fill();
-  ctx.fillStyle = '#FFC93C'; ctx.font = '800 19px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Peças da nave: ' + pcs + ' / 12', W - 132, 37);
+  ctx.fillStyle = '#FFC93C'; ctx.font = '800 19px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Peças da nave: ' + pcs + ' / 15', W - 132, 37);
   const b = mapPlayBtn(), ready = Math.abs(map.pos - map.sel) < 0.05;
   ctx.fillStyle = ready ? 'rgba(46,125,58,.95)' : 'rgba(46,125,58,.5)'; rr(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 29); ctx.fill();
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
@@ -710,7 +758,7 @@ function moveX(dx) {
 function moveY(dy) {
   P.y += dy;
   for (const s of L.solids) if (!s.gone && overlap(P, s)) {
-    if (dy > 0) { P.y = s.y - P.h; P.onGround = true; P.surf = s.k; } else if (dy < 0) P.y = s.y + s.h;
+    if (dy > 0) { P.y = s.y - P.h; P.onGround = true; P.surf = s.k; if (s.crumble && s.cr == null) { s.cr = 0.55; SFX.snap(); } } else if (dy < 0) P.y = s.y + s.h;
     P.vy = 0;
   }
 }
@@ -749,9 +797,9 @@ function update(dt) {
     if (a.move) a.x = a.bx + Math.sin(time * a.move.sp) * a.move.amp;
     if (a.broken > 0) { a.broken -= dt; if (a.broken <= 0) a.broken = 0; }
   }
-  updateCrabs(dt); updateTrikes(dt); updatePteros(dt); updateDente(dt); updatePunch(dt); updateShots(dt); updateBoss(dt); updateIcicles(dt); updateVolcano(dt);
+  updateCrabs(dt); updateTrikes(dt); updatePteros(dt); updateDente(dt); updatePunch(dt); updateShots(dt); updateBoss(dt); updateIcicles(dt); updateVolcano(dt); updateCave(dt);
   if (L.boss && !boss && P.x > L.boss.startX) startBoss();
-  L.crabs = updateBye(L.crabs, dt, true); L.trikes = updateBye(L.trikes, dt, true); L.pteros = updateBye(L.pteros, dt, false);
+  L.crabs = updateBye(L.crabs, dt, true); L.trikes = updateBye(L.trikes, dt, true); L.pteros = updateBye(L.pteros, dt, false); L.spiders = updateBye(L.spiders, dt, false);
   P.exprT -= dt; if (P.exprT <= 0) P.expr = 'ok';
   if (P.hurt > 0) P.hurt -= dt;
   if (P.inv > 0) P.inv -= dt;
@@ -819,7 +867,8 @@ function update(dt) {
     if (chaseOn) { resetChase(); say('Ufa! Vamos de novo!', 1.6); }
     else {
       P.x = P.lastCP; P.y = GROUND - P.h - 40; P.vx = 0; P.vy = 0; P.expr = 'surprise'; P.exprT = 1.2;
-      const msgs = L.theme === 'volcano' ? ['Ai ai ai, lava quente!', 'Ufa! Quase virei robô derretido!', 'Essa foi por pouco!'] : L.theme === 'forest' ? ['Eca! Lama de pântano!', 'Quase! Tenta de novo!', 'Blé! Que meleca verde!'] : ['Ufa! Robô não gosta de água!', 'Quase! Tenta de novo!', 'Brrr, que água gelada!'];
+      const inLava = L.lava && L.lava.some(lv => P.x + 20 > lv.x && P.x + 20 < lv.x + lv.w);
+      const msgs = (L.theme === 'volcano' || inLava) ? ['Ai ai ai, lava quente!', 'Ufa! Quase virei robô derretido!', 'Essa foi por pouco!'] : L.theme === 'cave' ? ['Eca! Ácido gosmento!', 'Blé! Que meleca amarela!', 'Quase! Tenta de novo!'] : L.theme === 'forest' ? ['Eca! Lama de pântano!', 'Quase! Tenta de novo!', 'Blé! Que meleca verde!'] : ['Ufa! Robô não gosta de água!', 'Quase! Tenta de novo!', 'Brrr, que água gelada!'];
       say(msgs[Math.floor(Math.random() * 3)], 2);
     }
   }
@@ -954,7 +1003,7 @@ function updatePteros(dt) {
       p.y += (p.y0 - p.y) * Math.min(1, dt * 2.5); p.x += p.dir * 100 * dt;
       if (Math.abs(p.y - p.y0) < 6) { p.st = 'fly'; p.t = 0; }
     }
-    if (!P.climb && P.inv <= 0 && Math.abs(cx - p.x) < 34 && Math.abs(cy - p.y) < 36) { knock(p.x, 340); say('Ei! Sai pra lá, pterodáctilo!', 1.6); }
+    if (!P.climb && P.inv <= 0 && Math.abs(cx - p.x) < 34 && Math.abs(cy - p.y) < 36) { knock(p.x, 340); say(p.kind === 'bat' ? 'Xô, morcego!' : 'Ei! Sai pra lá, pterodáctilo!', 1.6); }
   }
 }
 
@@ -1010,6 +1059,7 @@ function updateDente(dt) {
 function biteTarget(d) {
   let best = null, bd = 160;
   for (const c of L.crabs) if (!c.bye) { const dd = Math.hypot(c.x - d.x, (GROUND - 14) - d.y); if (dd < bd) { bd = dd; best = { kind: 'crab', o: c, x: c.x, y: GROUND - 6 }; } }
+  for (const q of L.spiders) if (!q.bye && q.y > GROUND - 170) { const dd = Math.hypot(q.x - d.x, q.y - d.y); if (dd < bd) { bd = dd; best = { kind: 'ptero', o: q, x: q.x, y: q.y + 20 }; } }
   for (const q of L.pteros) if (!q.bye && q.y > GROUND - 170) { const dd = Math.hypot(q.x - d.x, q.y - d.y); if (dd < bd) { bd = dd; best = { kind: 'ptero', o: q, x: q.x, y: q.y + 20 }; } }
   for (const t of L.trikes) if (!t.bye) { const dd = Math.abs(t.x - d.x) - 50; if (dd < bd && Math.abs(d.y - GROUND) < 40) { bd = dd; best = { kind: 'trike', o: t, x: t.x - Math.sign(t.x - d.x) * 50, y: GROUND - 10 }; } }
   if (boss && bossOn && boss.st !== 'enter' && boss.st !== 'down' && boss.y > -20) { const dd = Math.abs(boss.x - d.x) - 55; if (dd < bd) { bd = dd; best = { kind: 'yeti', o: boss, x: boss.x - Math.sign(boss.x - d.x) * 56, y: GROUND - 10 }; } }
@@ -1047,6 +1097,33 @@ function updateVolcano(dt) {
       if (r.y > GROUND - 10) { r.dead = true; puff(r.x, GROUND - 4, 14, '#ff8a65', 220); SFX.stomp(); }
     }
     rocks = rocks.filter(r => !r.dead);
+  }
+}
+
+// ---------- caverna: aranhas, gás e cristais ----------
+function ventPhase(v) { const c = (time + v.phase) % v.period; return c > v.period - 1.6 ? 'gas' : c > v.period - 2.4 ? 'warn' : 'idle'; }
+function updateCave(dt) {
+  for (const so of L.solids) {
+    if (so.cr != null && !so.gone) { so.cr -= dt; if (so.cr <= 0) { so.gone = true; so.regrow = 3; puff(so.x + so.w / 2, so.y + 10, 14, '#ffee58', 180); SFX.snap(); } }
+    else if (so.gone && so.crumble) { so.regrow -= dt; if (so.regrow <= 0 && !overlap(P, so)) { so.gone = false; so.cr = null; sparkle(so.x + so.w / 2, so.y, 6); } }
+  }
+  for (const sp of L.spiders) {
+    if (sp.bye) continue;
+    sp.t += dt; sp.cd -= dt;
+    const cx = P.x + P.w / 2, cy = P.y + P.h / 2;
+    if (sp.st === 'up') { if (Math.abs(cx - sp.x) < 150 && sp.cd <= 0) { sp.st = 'down'; sp.t = 0; } }
+    else if (sp.st === 'down') { sp.y += 300 * dt; if (sp.y >= sp.low) { sp.y = sp.low; sp.st = 'hold'; sp.t = 0; } }
+    else if (sp.st === 'hold') { if (sp.t > 1.3) { sp.st = 'rise'; sp.t = 0; } }
+    else if (sp.st === 'rise') { sp.y -= 120 * dt; if (sp.y <= sp.top) { sp.y = sp.top; sp.st = 'up'; sp.cd = 1.4; } }
+    if (P.inv <= 0 && !P.climb && Math.hypot(cx - sp.x, cy - sp.y) < 34) { hurtZipo(sp.x); say('Ai! Aranha de cristal!', 1.4); }
+  }
+  for (const v of L.vents) {
+    if (ventPhase(v) === 'gas') {
+      const k = Math.min(1, ((time + v.phase) % v.period - (v.period - 1.6)) / 0.5), top = v.base - 230 * k;
+      if (Math.random() < 0.5) parts.push({ x: v.x + (Math.random() - .5) * 50, y: v.base - Math.random() * 200 * k, vx: (Math.random() - .5) * 30, vy: -60, life: .7, max: .7, col: 'rgba(212,225,87,.55)', r: 12 + Math.random() * 12 });
+      const cx = P.x + P.w / 2;
+      if (P.inv <= 0 && Math.abs(cx - v.x) < 42 && P.y + P.h > top && P.y < v.base) { hurtZipo(v.x); say(['Cof cof! Que fedor!', 'Eca! Cheiro de ovo podre!', 'Cof! Gás de enxofre!'][Math.floor(Math.random() * 3)], 1.6); }
+    }
   }
 }
 
@@ -1153,6 +1230,22 @@ function drawSkyForest() {
 }
 function drawSea() {
   const forest = L.theme === 'forest';
+  if (L.theme === 'cave') {
+    ctx.fillStyle = '#c0ca33'; ctx.fillRect(0, SEA_Y, W, H - SEA_Y); ctx.fillStyle = '#9e9d24'; ctx.fillRect(0, SEA_Y + 30, W, H);
+    ctx.strokeStyle = '#f0f4c3'; ctx.lineWidth = 3; ctx.beginPath();
+    for (let x = -20; x <= W + 20; x += 10) { const wx = x + camX; const y = SEA_Y + Math.sin(wx * 0.025 + time * 1.3) * 3; x === -20 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(240,244,195,.8)'; for (let i = 0; i < 12; i++) { const x = ((i * 143 - camX * 0.9) % W + W) % W, r = 3 + Math.abs(Math.sin(time * 2.5 + i)) * 6; ctx.beginPath(); ctx.arc(x, SEA_Y + 10 + (i % 3) * 10, r, 0, 7); ctx.fill(); }
+    for (const lv of L.lava) {
+      const x0 = lv.x - camX; if (x0 > W || x0 + lv.w < 0) continue;
+      ctx.fillStyle = '#ff6f00'; ctx.fillRect(x0, SEA_Y - 2, lv.w, H - SEA_Y + 2); ctx.fillStyle = '#e65100'; ctx.fillRect(x0, SEA_Y + 30, lv.w, H);
+      ctx.strokeStyle = '#ffd54f'; ctx.lineWidth = 4; ctx.beginPath();
+      for (let x = 0; x <= lv.w; x += 10) { const y = SEA_Y + Math.sin((x + lv.x) * 0.02 + time * 1.5) * 4; x === 0 ? ctx.moveTo(x0 + x, y) : ctx.lineTo(x0 + x, y); }
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,235,59,.85)'; for (let i = 0; i < lv.w / 70; i++) { const r = 4 + Math.abs(Math.sin(time * 2 + i)) * 7; ctx.beginPath(); ctx.arc(x0 + 30 + i * 70, SEA_Y + 14, r, 0, 7); ctx.fill(); }
+    }
+    return;
+  }
   if (L.theme === 'volcano') {
     ctx.fillStyle = '#ff6f00'; ctx.fillRect(0, SEA_Y, W, H - SEA_Y); ctx.fillStyle = '#e65100'; ctx.fillRect(0, SEA_Y + 30, W, H);
     ctx.strokeStyle = '#ffd54f'; ctx.lineWidth = 4; ctx.beginPath();
@@ -1205,6 +1298,17 @@ function drawSolids() {
       ctx.fillStyle = '#7a4f2a'; rr(s.x, s.y, s.w, s.h, 14); ctx.fill();
       ctx.fillStyle = '#c99a63'; ctx.beginPath(); ctx.ellipse(s.x + s.w - 10, s.y + s.h / 2, 9, s.h / 2 - 3, 0, 0, 7); ctx.fill();
       ctx.strokeStyle = '#7a4f2a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(s.x + s.w - 10, s.y + s.h / 2, 4, 8, 0, 0, 7); ctx.stroke();
+    } else if (s.k === 'cavefloor' || s.k === 'caverock') {
+      ctx.fillStyle = '#4a3b46'; rr(s.x, s.y, s.w, s.h + 40, 12); ctx.fill();
+      ctx.fillStyle = '#3b2f38'; for (let i = 0; i < s.w / 55; i++) { rr(s.x + 12 + i * 55, s.y + 40 + (i % 3) * 26, 30, 18, 7); ctx.fill(); }
+      ctx.fillStyle = '#fdd835'; for (let i = 0; i < s.w / 37; i++) { ctx.beginPath(); ctx.arc(s.x + 18 + i * 37, s.y + 26 + (i * 13) % 50, 3, 0, 7); ctx.fill(); }
+      ctx.fillStyle = '#5d4a57'; rr(s.x, s.y - 3, s.w, 16, 8); ctx.fill();
+    } else if (s.k === 'crystal') {
+      const sh = s.cr != null ? (Math.random() - .5) * 5 : 0;
+      ctx.fillStyle = 'rgba(255,235,59,.25)'; ctx.beginPath(); ctx.ellipse(s.x + s.w / 2, s.y + 10, s.w * 0.8, 30, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = s.cr != null ? '#fff176' : '#fdd835'; ctx.beginPath(); ctx.moveTo(s.x + sh, s.y); ctx.lineTo(s.x + s.w + sh, s.y); ctx.lineTo(s.x + s.w - 14 + sh, s.y + s.h + 16); ctx.lineTo(s.x + 14 + sh, s.y + s.h + 16); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff59d'; ctx.beginPath(); ctx.moveTo(s.x + 10 + sh, s.y + 3); ctx.lineTo(s.x + s.w / 2 + sh, s.y + 3); ctx.lineTo(s.x + s.w / 2 - 8 + sh, s.y + s.h + 10); ctx.closePath(); ctx.fill();
+      if (s.cr != null) { ctx.strokeStyle = '#6d4c41'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(s.x + 20 + sh, s.y + 2); ctx.lineTo(s.x + 34 + sh, s.y + 14); ctx.lineTo(s.x + 26 + sh, s.y + 22); ctx.stroke(); }
     } else if (s.k === 'basalt') {
       ctx.fillStyle = '#3e3533'; rr(s.x, s.y, s.w, s.h + 40, 12); ctx.fill();
       ctx.strokeStyle = 'rgba(255,112,67,' + (0.55 + Math.sin(time * 3 + s.x) * 0.25) + ')'; ctx.lineWidth = 3;
@@ -1250,10 +1354,10 @@ function drawAnchors() {
         continue;
       }
       const shakeX = rope && rope.a === a && a.breaks && rope.t > 1.0 ? (Math.random() - .5) * 6 : 0;
-      ctx.strokeStyle = L.theme === 'volcano' ? (a.breaks ? '#8d6e63' : '#90a4ae') : a.breaks ? '#8a7a3a' : '#3c8a3a'; ctx.lineWidth = 5; if (L.theme === 'volcano') ctx.setLineDash([8, 5]); ctx.beginPath(); ctx.moveTo(topX, 0);
+      ctx.strokeStyle = L.theme === 'cave' ? (a.breaks ? '#6d4c41' : '#a1887f') : L.theme === 'volcano' ? (a.breaks ? '#8d6e63' : '#90a4ae') : a.breaks ? '#8a7a3a' : '#3c8a3a'; ctx.lineWidth = 5; if (L.theme === 'volcano') ctx.setLineDash([8, 5]); ctx.beginPath(); ctx.moveTo(topX, 0);
       ctx.quadraticCurveTo((topX + a.x) / 2 + Math.sin(time) * 8, a.y / 2, a.x + shakeX, a.y - 14); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle = a.breaks ? '#a89a4a' : '#4caf50';
-      if (L.theme !== 'volcano') for (let i = 1; i < 5; i++) { const t = i / 5, yy = t * a.y, xx = topX + (a.x - topX) * t; ctx.beginPath(); ctx.ellipse(xx + (i % 2 ? 9 : -9), yy, 9, 4, i % 2 ? .5 : -.5, 0, 7); ctx.fill(); }
+      if (L.theme !== 'volcano' && L.theme !== 'cave') for (let i = 1; i < 5; i++) { const t = i / 5, yy = t * a.y, xx = topX + (a.x - topX) * t; ctx.beginPath(); ctx.ellipse(xx + (i % 2 ? 9 : -9), yy, 9, 4, i % 2 ? .5 : -.5, 0, 7); ctx.fill(); }
       if (a.breaks) { ctx.strokeStyle = '#5a3d25'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(a.x - 6, a.y - 40); ctx.lineTo(a.x + 2, a.y - 34); ctx.lineTo(a.x - 4, a.y - 28); ctx.stroke(); }
       ctx.strokeStyle = forest ? (a.breaks ? '#e08a2e' : '#f2b705') : '#f2b705'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(a.x + shakeX, a.y, 13, 0, 7); ctx.stroke();
       ctx.strokeStyle = 'rgba(255,230,120,' + (0.35 + Math.sin(time * 4) * 0.25) + ')'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(a.x, a.y, 20, 0, 7); ctx.stroke();
@@ -1284,6 +1388,15 @@ function drawPiece(p) {
   } else if (p.type === 'shield') {
     ctx.fillStyle = '#5fd0ff'; ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(18, -12); ctx.lineTo(14, 8); ctx.lineTo(0, 20); ctx.lineTo(-14, 8); ctx.lineTo(-18, -12); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = '#c7f1ff'; ctx.lineWidth = 3; ctx.stroke(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, -2, 5, 0, 7); ctx.fill();
+  } else if (p.type === 'radar') {
+    ctx.fillStyle = '#90a4ae'; ctx.fillRect(-3, 0, 6, 18); rr(-12, 16, 24, 6, 3); ctx.fill();
+    ctx.save(); ctx.rotate(-0.5 + Math.sin(time * 2) * 0.3); ctx.fillStyle = '#eceff1'; ctx.beginPath(); ctx.arc(0, 0, 18, Math.PI * 0.15, Math.PI * 0.85, true); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#ff5252'; ctx.beginPath(); ctx.arc(0, -8, 4, 0, 7); ctx.fill(); ctx.restore();
+  } else if (p.type === 'hatch') {
+    ctx.fillStyle = '#78909c'; ctx.beginPath(); ctx.arc(0, 0, 19, 0, 7); ctx.fill(); ctx.fillStyle = '#4fc3f7'; ctx.beginPath(); ctx.arc(0, 0, 11, 0, 7); ctx.fill();
+    ctx.fillStyle = '#cfd8dc'; for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; ctx.beginPath(); ctx.arc(Math.cos(a) * 15, Math.sin(a) * 15, 2.2, 0, 7); ctx.fill(); }
+  } else if (p.type === 'battery') {
+    ctx.fillStyle = '#455a64'; rr(-12, -18, 24, 36, 5); ctx.fill(); ctx.fillRect(-5, -23, 10, 6);
+    ctx.fillStyle = '#fdd835'; const lv = Math.floor(time * 3) % 4; for (let i = 0; i < 4; i++) { if (i <= lv) rr(-8, 10 - i * 8, 16, 6, 2), ctx.fill(); }
   } else if (p.type === 'turbine') {
     ctx.fillStyle = '#90a4ae'; ctx.beginPath(); ctx.arc(0, 0, 18, 0, 7); ctx.fill(); ctx.fillStyle = '#37474f'; ctx.beginPath(); ctx.arc(0, 0, 13, 0, 7); ctx.fill();
     ctx.save(); ctx.rotate(time * 6); ctx.fillStyle = '#cfd8dc'; for (let i = 0; i < 5; i++) { ctx.rotate(Math.PI * 2 / 5); ctx.beginPath(); ctx.ellipse(6, 0, 7, 3, 0.4, 0, 7); ctx.fill(); } ctx.restore();
@@ -1522,6 +1635,70 @@ function drawVolcanoStuff() {
     ctx.fillStyle = '#5d4037'; ctx.beginPath(); ctx.arc(r.x, r.y, 15, 0, 7); ctx.fill();
     ctx.fillStyle = '#ff7043'; ctx.beginPath(); ctx.arc(r.x - 4, r.y - 4, 6, 0, 7); ctx.fill();
   }
+}
+function drawSkyCave() {
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#1a1220'); g.addColorStop(.6, '#3a2a35'); g.addColorStop(1, '#5a4636');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  for (let layer = 0; layer < 2; layer++) {
+    const par = layer ? 0.5 : 0.25;
+    for (let i = 0; i < 12; i++) {
+      const x = ((i * 330 + layer * 160 - camX * par) % 3960 + 3960) % 3960 - 200; if (x < -250 || x > W + 250) continue;
+      ctx.fillStyle = layer ? '#3b2d38' : '#2e2330';
+      ctx.beginPath(); ctx.ellipse(x, 470, 150 + (i % 3) * 30, 120 + (i % 4) * 25, 0, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = 'rgba(253,216,53,' + (0.35 + Math.sin(time * 2 + i) * 0.15) + ')';
+      ctx.beginPath(); ctx.moveTo(x - 20, 420 - layer * 20); ctx.lineTo(x - 12, 380 - layer * 20 - (i % 3) * 10); ctx.lineTo(x - 4, 420 - layer * 20); ctx.fill();
+    }
+  }
+  ctx.fillStyle = '#211822'; ctx.fillRect(0, 0, W, 40);
+  for (let i = 0; i < W / 46 + 2; i++) { const x = i * 46 - ((camX * 0.95) % 46), hh = 26 + ((i * 7 + Math.floor(camX * 0.95 / 46)) % 5) * 9; ctx.beginPath(); ctx.moveTo(x, 38); ctx.lineTo(x + 23, 38 + hh); ctx.lineTo(x + 46, 38); ctx.fill(); }
+}
+function drawCrystals(x) {
+  ctx.fillStyle = 'rgba(255,235,59,.18)'; ctx.beginPath(); ctx.arc(x, 445, 46, 0, 7); ctx.fill();
+  const c = [[-18, 34, -0.3], [0, 52, 0], [16, 30, 0.35]];
+  for (const k of c) { ctx.save(); ctx.translate(x + k[0], 462); ctx.rotate(k[2]); ctx.fillStyle = '#fbc02d'; ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-6, -k[1] + 10); ctx.lineTo(0, -k[1]); ctx.lineTo(6, -k[1] + 10); ctx.lineTo(8, 0); ctx.fill(); ctx.fillStyle = '#fff59d'; ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(-3, -k[1] + 12); ctx.lineTo(0, -k[1] + 4); ctx.lineTo(0, 0); ctx.fill(); ctx.restore(); }
+}
+function drawBat(p) {
+  const flap = Math.sin(time * (p.st === 'dive' ? 10 : 16) + p.min) * 0.9;
+  ctx.save(); ctx.translate(p.x, p.y); ctx.scale(p.st === 'dive' ? Math.sign(p.vx || 1) : p.dir, 1);
+  ctx.fillStyle = '#4a2c5a';
+  ctx.beginPath(); ctx.moveTo(-4, 0); ctx.quadraticCurveTo(-20, -18 - flap * 14, -34, -6 - flap * 10); ctx.quadraticCurveTo(-24, -2, -20, 6); ctx.quadraticCurveTo(-12, 0, -4, 6); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(4, 0); ctx.quadraticCurveTo(20, -18 - flap * 14, 34, -6 - flap * 10); ctx.quadraticCurveTo(24, -2, 20, 6); ctx.quadraticCurveTo(12, 0, 4, 6); ctx.fill();
+  ctx.fillStyle = '#6a3f80'; ctx.beginPath(); ctx.ellipse(0, 0, 9, 11, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-7, -8); ctx.lineTo(-5, -17); ctx.lineTo(-2, -9); ctx.moveTo(7, -8); ctx.lineTo(5, -17); ctx.lineTo(2, -9); ctx.fill();
+  ctx.fillStyle = p.st === 'warn' || p.st === 'dive' ? '#ff5252' : '#fff176'; ctx.beginPath(); ctx.arc(-3, -2, 2.2, 0, 7); ctx.arc(3, -2, 2.2, 0, 7); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(-2, 4); ctx.lineTo(-1, 8); ctx.lineTo(0, 4); ctx.moveTo(2, 4); ctx.lineTo(1, 8); ctx.lineTo(0, 4); ctx.fill();
+  ctx.restore();
+  if (p.st === 'warn') { ctx.fillStyle = '#ffeb3b'; ctx.font = '900 24px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.fillText('!', p.x, p.y - 22 - Math.abs(Math.sin(time * 12)) * 5); }
+}
+function drawSpider(sp) {
+  if (!sp.bye) { ctx.strokeStyle = 'rgba(230,230,230,.75)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(sp.x, 30); ctx.lineTo(sp.x, sp.y - 12); ctx.stroke(); }
+  ctx.save(); ctx.translate(sp.x, sp.y);
+  const wig = Math.sin(time * 10) * 0.2;
+  ctx.strokeStyle = '#26c6da'; ctx.lineWidth = 3;
+  for (let i = 0; i < 4; i++) for (const sgn of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sgn * 6, -2 + i * 3); ctx.lineTo(sgn * (18 + i * 2), -10 + i * 6 + wig * 10); ctx.lineTo(sgn * (24 + i), 4 + i * 5); ctx.stroke(); }
+  ctx.fillStyle = '#80deea'; ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(12, -2); ctx.lineTo(0, 14); ctx.lineTo(-12, -2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#e0f7fa'; ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(4, -2); ctx.lineTo(0, 8); ctx.lineTo(-4, -2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#d50000'; for (const e of [[-4, 4], [4, 4], [-2, 8], [2, 8]]) { ctx.beginPath(); ctx.arc(e[0], e[1], 1.8, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+function drawCaveStuff() {
+  for (const v of (L.vents || [])) {
+    if (v.x < camX - 80 || v.x > camX + W + 80) continue;
+    if (v.base === GROUND) { ctx.fillStyle = '#2b2129'; ctx.beginPath(); ctx.ellipse(v.x, GROUND + 2, 22, 7, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#c0ca33'; ctx.beginPath(); ctx.ellipse(v.x, GROUND + 2, 14, 4, 0, 0, 7); ctx.fill(); }
+    const ph = ventPhase(v);
+    if (ph === 'warn') { ctx.fillStyle = 'rgba(212,225,87,.8)'; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(v.x - 10 + i * 10, v.base - 8 - Math.abs(Math.sin(time * 9 + i)) * 10, 5, 0, 7); ctx.fill(); } }
+    if (ph === 'gas') {
+      const k = Math.min(1, ((time + v.phase) % v.period - (v.period - 1.6)) / 0.5);
+      for (let i = 0; i < 6; i++) { const yy = v.base - 30 - i * 36 * k, rr2 = 26 + i * 5 + Math.sin(time * 4 + i) * 4; ctx.fillStyle = 'rgba(205,220,57,' + (0.5 - i * 0.05) + ')'; ctx.beginPath(); ctx.arc(v.x + Math.sin(time * 3 + i) * 8, yy, rr2, 0, 7); ctx.fill(); }
+    }
+  }
+}
+function drawCaveDark() {
+  const cx = P.x + P.w / 2 - camX, cy = P.y + P.h / 2;
+  ctx.save(); ctx.translate(camX, 0);
+  const g = ctx.createRadialGradient(cx, cy, 120, cx, cy, Math.max(W, H) * 0.75);
+  g.addColorStop(0, 'rgba(15,8,20,0)'); g.addColorStop(1, 'rgba(15,8,20,.62)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
 }
 function drawPine(x) {
   ctx.fillStyle = '#5d4037'; ctx.fillRect(x - 6, 400, 12, 62);
@@ -1783,6 +1960,13 @@ function currentHint() {
     if (x > 1850 && x < 2010 && P.y < 300) return 'Cipós que se mexem e um que arrebenta. Atenção!';
     if (L.dente.st === 'trapped' && x > 2850 && x < 3250) return 'Puxe o nó dos espinhos com o BRAÇO!';
   }
+  if (L.id === 5) {
+    if (x > 650 && x < 800 && P.y > 380) return 'Cristais que quebram! Pule rápido de um para o outro';
+    if (x > 1350 && x < 1500) return 'Aranhas descem do teto! Soco, tiro ou mordida!';
+    if (x > 1750 && x < 1900 && P.y > 350) return 'Agarre a beirada com o BRAÇO!';
+    if (x > 2100 && x < 2200 && P.y < 300) return 'Gás de enxofre! Espere ele passar antes de balançar';
+    if (x > 3400 && x < 3560 && P.y > 380) return 'Rio de lava! Cristais que quebram e um gêiser!';
+  }
   if (L.id === 4) {
     if (x < 600 && stateT > 8.5 && stateT < 15) return 'O Dentinho morde as criaturas que chegam perto!';
     if (x > 820 && x < 960) return 'Lava! Use as correntes para atravessar';
@@ -1801,9 +1985,9 @@ function currentHint() {
   return '';
 }
 function drawWorld() {
-  if (L.theme === 'forest') drawSkyForest(); else if (L.theme === 'snow') drawSkySnow(); else if (L.theme === 'volcano') drawSkyVolcano(); else drawSkyBeach();
+  if (L.theme === 'forest') drawSkyForest(); else if (L.theme === 'snow') drawSkySnow(); else if (L.theme === 'volcano') drawSkyVolcano(); else if (L.theme === 'cave') drawSkyCave(); else drawSkyBeach();
   ctx.save(); ctx.translate(-camX, 0);
-  for (const x of L.deco) if (x > camX - 120 && x < camX + W + 60) { if (L.theme === 'forest') drawFern(x); else if (L.theme === 'snow') drawPine(x); else if (L.theme === 'volcano') drawDeadTree(x); else drawPalm(x); }
+  for (const x of L.deco) if (x > camX - 120 && x < camX + W + 60) { if (L.theme === 'forest') drawFern(x); else if (L.theme === 'snow') drawPine(x); else if (L.theme === 'volcano') drawDeadTree(x); else if (L.theme === 'cave') drawCrystals(x); else drawPalm(x); }
   ctx.restore();
   drawSea();
   ctx.save(); ctx.translate(-camX, 0);
@@ -1814,6 +1998,7 @@ function drawWorld() {
   drawAnchors();
   drawIcicles();
   drawVolcanoStuff();
+  drawCaveStuff();
   drawDente();
   for (const p of L.pieces) if (!p.got && !p.hidden && !(p.water && !p.pulled)) drawPiece(p);
   for (const c of L.crabs) if (c.x > camX - 60 && c.x < camX + W + 60) byeWrap(c, c.x, GROUND - 16, () => drawCrab(c));
@@ -1856,7 +2041,7 @@ function render() {
     drawZipo(W / 2 - 20, H / 2 + 22 + Math.sin(time * 3) * 6, 1, Math.floor(time) % 4 === 0 ? 'happy' : 'ok', time * 2, 1.3);
     if (save.area >= 2) drawDenteAt(W / 2 + 70, H / 2 + 108, -1, true, 1.1);
     if (Math.floor(time * 2) % 2 === 0) title('Toque para começar', H - 62, 28, '#fff', '#123B1C');
-    ctx.font = '700 14px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.textAlign = 'center'; ctx.fillText('Versão de teste 6  •  Um jogo criado pelo Felipe', W / 2, H - 22);
+    ctx.font = '700 14px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.textAlign = 'center'; ctx.fillText('Versão de teste 7  •  Um jogo criado pelo Felipe', W / 2, H - 22);
   } else if (state === 'map') {
     ctx.restore(); ctx.save(); drawMap();
   } else if (state === 'intro') {
@@ -1878,7 +2063,9 @@ function render() {
     drawWorld();
     drawTrex();
     drawPlayer();
-    for (const p of L.pteros) byeWrap(p, p.x, p.y, () => drawPtero(p));
+    for (const p of L.pteros) byeWrap(p, p.x, p.y, () => p.kind === 'bat' ? drawBat(p) : drawPtero(p));
+    for (const p of L.spiders) byeWrap(p, p.x, p.y, () => drawSpider(p));
+    if (L.theme === 'cave') drawCaveDark();
     drawBoss(); drawShots();
     if (state !== 'win') drawParts();
     ctx.restore();
@@ -1886,17 +2073,18 @@ function render() {
     if (state === 'play') { drawButtons(); drawHUD(); }
     if (state === 'win') {
       ctx.fillStyle = 'rgba(11,29,58,.75)'; ctx.fillRect(0, 0, W, H);
-      title(L.id === 4 ? 'VULCÃO COMPLETO!' : L.id === 3 ? (L.boss.defeated ? 'YETI DERROTADO!' : 'VOCÊ FUGIU DO YETI!') : L.id === 2 ? 'FLORESTA COMPLETA!' : 'VOCÊ CONSEGUIU!', H / 2 - 140, 52, '#FFC93C', '#5a3d00');
+      title(L.id === 5 ? 'CAVERNA COMPLETA!' : L.id === 4 ? 'VULCÃO COMPLETO!' : L.id === 3 ? (L.boss.defeated ? 'YETI DERROTADO!' : 'VOCÊ FUGIU DO YETI!') : L.id === 2 ? 'FLORESTA COMPLETA!' : 'VOCÊ CONSEGUIU!', H / 2 - 140, 52, '#FFC93C', '#5a3d00');
       ctx.fillStyle = '#fff'; ctx.font = '700 22px system-ui,sans-serif'; ctx.textAlign = 'center';
       if (L.id === 1) { ctx.fillText('O Zipo achou as 3 peças da praia:', W / 2, H / 2 - 80); ctx.fillText('Propulsor, Painel Solar e Motor', W / 2, H / 2 - 50); }
       else if (L.id === 2) { ctx.fillText('Antena, Escudo e Asa da Nave! Já são 6 peças.', W / 2, H / 2 - 80); ctx.fillText('E o Dentinho vai morar com o Zipo no planeta dele!', W / 2, H / 2 - 50); }
+      else if (L.id === 5) { ctx.fillText('Radar, Escotilha e Bateria de Enxofre! Já são 15 peças.', W / 2, H / 2 - 80); ctx.fillText('O Dentinho derrotou ' + (L.dente.kills || 0) + ' criaturas com mordidas!', W / 2, H / 2 - 50); }
       else if (L.id === 4) { ctx.fillText('Turbina, Painel de Controle e Núcleo de Fogo! Já são 12 peças.', W / 2, H / 2 - 80); ctx.fillText('O Dentinho derrotou ' + (L.dente.kills || 0) + ' criaturas com mordidas!', W / 2, H / 2 - 50); }
       else { ctx.fillText('Canhão, Bússola Estelar e Cristal de Energia!', W / 2, H / 2 - 80); ctx.fillText(L.boss.defeated ? 'Você acertou 20 tiros no Yeti! Já são 9 peças.' : 'Você escapou pelos ganchos! Já são 9 peças.', W / 2, H / 2 - 50); }
       drawZipo(W / 2 - 20 - (L.id >= 2 ? 30 : 0), H / 2 - 10 + Math.abs(Math.sin(time * 5)) * -24, 1, 'happy', time * 3, 1.2);
       if (L.id >= 2) drawDenteAt(W / 2 + 50, H / 2 + 70 + Math.abs(Math.sin(time * 5 + 1)) * -24, -1, true, 1.3);
       ctx.fillStyle = '#7CE38B'; ctx.font = '800 22px system-ui,sans-serif';
-      ctx.fillText(L.id === 1 ? 'Próxima área: Floresta dos Dinossauros!' : L.id === 2 ? 'Próxima área: Montanhas Geladas!' : L.id === 3 ? 'Próxima área: O Vulcão!' : 'Próxima área: ' + L.next + ' (em breve!)', W / 2, H / 2 + 120);
-      if (stateT > 1.2 && Math.floor(time * 2) % 2 === 0) { ctx.fillStyle = '#fff'; ctx.font = '700 19px system-ui,sans-serif'; ctx.fillText(L.id === 1 ? 'Toque para entrar na floresta' : L.id === 2 ? 'Toque para subir as montanhas' : L.id === 3 ? 'Toque para ir ao vulcão' : 'Toque para voltar ao início', W / 2, H - 34); }
+      ctx.fillText(L.id === 1 ? 'Próxima área: Floresta dos Dinossauros!' : L.id === 2 ? 'Próxima área: Montanhas Geladas!' : L.id === 3 ? 'Próxima área: O Vulcão!' : L.id === 4 ? 'Próxima área: Caverna de Enxofre!' : 'Próxima área: ' + L.next + ' (em breve!)', W / 2, H / 2 + 120);
+      if (stateT > 1.2 && Math.floor(time * 2) % 2 === 0) { ctx.fillStyle = '#fff'; ctx.font = '700 19px system-ui,sans-serif'; ctx.fillText(L.id === 1 ? 'Toque para entrar na floresta' : L.id === 2 ? 'Toque para subir as montanhas' : 'Toque para voltar ao mapa', W / 2, H - 34); }
       if (Math.random() < 0.3) sparkle(Math.random() * W, Math.random() * H * 0.5, 3);
       drawParts();
     }
@@ -1912,7 +2100,7 @@ function loop(now) {
 }
 loadLevel(1);
 requestAnimationFrame(loop);
-window.__game = { map, get save() { return save; }, openMap, mapTap, mapPlay,  get rocks() { return rocks; }, pressShoot, get boss() { return boss; }, get bossOn() { return bossOn; }, pressPunch, P, get L() { return L; }, get state() { return state; }, get rope() { return rope; }, get trex() { return trex; }, get chaseOn() { return chaseOn; }, pressArm, pressJump, keys, startArea, beginPlay };
+window.__game = { get spiders() { return L.spiders; }, map, get save() { return save; }, openMap, mapTap, mapPlay,  get rocks() { return rocks; }, pressShoot, get boss() { return boss; }, get bossOn() { return bossOn; }, pressPunch, P, get L() { return L; }, get state() { return state; }, get rope() { return rope; }, get trex() { return trex; }, get chaseOn() { return chaseOn; }, pressArm, pressJump, keys, startArea, beginPlay };
 </script>
 </body>
 </html>
