@@ -13,7 +13,7 @@ canvas{display:block;width:100vw;height:100vh;height:100dvh}
 #rot{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:#0b1d3a;color:#fff;font:700 22px system-ui,sans-serif;text-align:center;padding:24px;gap:18px;z-index:5}
 #rot .ph{width:60px;height:100px;border:5px solid #7CE38B;border-radius:12px;animation:r 1.6s ease-in-out infinite}
 @keyframes r{0%,30%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
-@media (orientation:portrait){#rot{display:flex}}
+@media (orientation:portrait) and (pointer:coarse){#rot{display:flex}}
 </style>
 </head>
 <body>
